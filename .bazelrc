@@ -1,0 +1,31 @@
+# GentlyOS Bazel Configuration
+# Google-style monorepo settings
+
+# Rust settings (when rules_rust is active)
+# build --@rules_rust//:extra_rustc_flags=-Copt-level=3
+# build --@rules_rust//:extra_rustc_flags=-Clto=thin
+
+# Local disk cache
+build --disk_cache=~/.cache/bazel-gentlyos
+
+# Hermetic builds
+build --incompatible_strict_action_env
+
+# Test settings
+test --test_output=errors
+test --test_summary=short
+
+# Feature flags (CODIE: fence)
+build:release --define=release=true
+build:debug --define=debug=true
+
+# Remote caching (future - for CI/shared builds)
+# build --remote_cache=grpc://cache.gentlyos.dev:9092
+# build --remote_upload_local_results=true
+
+# Performance optimizations
+build --jobs=auto
+build --experimental_remote_cache_compression
+
+# Common options
+common --enable_bzlmod=false

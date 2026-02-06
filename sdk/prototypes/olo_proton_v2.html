@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OLO PROTON SHELL v2</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --fork-explore: #00e5a0;
+  --fork-pivot: #ff6b35;
+  --fork-refine: #4d9fff;
+  --fork-challenge: #ff3d71;
+  --fork-merge: #c77dff;
+  --fork-checkpoint: #ffd93d;
+  --fork-dead: #555;
+
+  --bg-void: #08080c;
+  --bg-shelf: #0c0c12;
+  --bg-panel: #0e0e16;
+  --bg-surface: #12121c;
+  --bg-elevated: #18182a;
+  --bg-hover: #1e1e32;
+  --border: #1a1a2e;
+  --border-active: #2a2a4e;
+  --text-primary: #e0e0e8;
+  --text-secondary: #9999aa;
+  --text-muted: #666680;
+  --text-dim: #333348;
+
+  --active-color: var(--fork-explore);
+  --process-color: var(--fork-refine);
+
+  --shelf-w: 240px;
+  --bottom-h: 190px;
+  --stamp-h: 32px;
+  --tab-h: 34px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-void);
+  font-family: 'DM Mono', monospace;
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ═══ MASTER GRID ═══ */
+.shell {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr auto;
+  grid-template-rows: var(--tab-h) 1fr var(--stamp-h) var(--bottom-h);
+  height: 100vh;
+}
+
+/* ═══ LEFT SHELF — Projects/Branches ═══ */
+.shelf-left {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  width: var(--shelf-w);
+  background: var(--bg-shelf);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: width 200ms ease;
+  overflow: hidden;
+  z-index: 10;
+}
+.shelf-left.collapsed { width: 40px; }
+
+/* ═══ RIGHT SHELF — Artifacts/Edits ═══ */
+.shelf-right {
+  grid-column: 4;
+  grid-row: 1 / -1;
+  width: var(--shelf-w);
+  background: var(--bg-shelf);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: width 200ms ease;
+  overflow: hidden;
+  z-index: 10;
+}
+.shelf-right.collapsed { width: 40px; }
+
+/* Shared shelf styles */
+.shelf-header {
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  min-height: 40px;
+}
+
+.shelf-toggle {
+  width: 18px; height: 18px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: color 150ms;
+}
+.shelf-toggle:hover { color: var(--active-color); }
+
+.shelf-title {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.collapsed .shelf-title,
+.collapsed .shelf-body,
+.collapsed .shelf-foot { display: none; }
+
+.shelf-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.shelf-foot {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 8px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 8px;
+}
+
+/* ═══ FOCUS/PROCESS TAB BAR ═══ */
+.pane-tabs {
+  grid-row: 1;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  gap: 2px;
+}
+
+.pane-tabs.focus-tabs { grid-column: 2; }
+.pane-tabs.process-tabs { grid-column: 3; border-left: 1px solid var(--border); }
+
+.pane-label-tag {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.pane-label-tag.focus-tag {
+  background: color-mix(in srgb, var(--active-color) 15%, transparent);
+  color: var(--active-color);
+}
+.pane-label-tag.process-tag {
+  background: color-mix(in srgb, var(--process-color) 15%, transparent);
+  color: var(--process-color);
+}
+
+.ptab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 5px 5px 0 0;
+  transition: all 120ms;
+  max-width: 160px;
+  position: relative;
+}
+.ptab:hover { background: var(--bg-surface); color: var(--text-primary); }
+.ptab.active { background: var(--bg-void); color: var(--text-primary); }
+.ptab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+}
+.ptab.active.focus-active::after { background: var(--active-color); }
+.ptab.active.process-active::after { background: var(--process-color); }
+
+.ptab-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ptab-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 9px;
+}
+
+.ptab-x {
+  font-size: 8px;
+  opacity: 0;
+  cursor: pointer;
+  padding: 2px;
+}
+.ptab:hover .ptab-x { opacity: 0.4; }
+.ptab-x:hover { opacity: 1 !important; }
+
+/* ═══ PANE CONTENT ═══ */
+.pane {
+  grid-row: 2;
+  background: var(--bg-void);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pane.focus-pane { grid-column: 2; }
+.pane.process-pane { grid-column: 3; border-left: 1px solid var(--border); }
+
+.pane-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.sim-chat { max-width: 600px; margin: 0 auto; }
+.sim-msg {
+  margin: 6px 0;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.6;
+  font-family: 'Instrument Sans', sans-serif;
+}
+.sim-msg.user { background: var(--bg-elevated); margin-left: 30px; }
+.sim-msg.claude { background: var(--bg-surface); margin-right: 30px; border-left: 2px solid var(--active-color); }
+.sim-msg.claude.process-msg { border-left-color: var(--process-color); }
+
+.stamp-line {
+  display: block;
+  font-family: 'DM Mono', monospace;
+  font-size: 8px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  padding: 3px 5px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 2px;
+  word-break: break-all;
+}
+
+/* Input area at bottom of each pane */
+.pane-input {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-panel);
+}
+.pane-input-field {
+  flex: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: var(--text-primary);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  outline: none;
+}
+.pane-input-field:focus { border-color: var(--active-color); }
+.pane-input-field.process-input:focus { border-color: var(--process-color); }
+
+.pane-send {
+  padding: 5px 10px;
+  font-size: 8px;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid;
+  transition: all 150ms;
+}
+.pane-send.focus-send { border-color: var(--active-color); color: var(--active-color); }
+.pane-send.focus-send:hover { background: color-mix(in srgb, var(--active-color) 15%, transparent); }
+.pane-send.process-send { border-color: var(--process-color); color: var(--process-color); }
+.pane-send.process-send:hover { background: color-mix(in srgb, var(--process-color) 15%, transparent); }
+
+/* ═══ STAMP BAR ═══ */
+.stamp-bar {
+  grid-column: 2 / 4;
+  grid-row: 3;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 6px;
+}
+
+.stamp-live {
+  flex: 1;
+  font-size: 8px;
+  font-family: 'DM Mono', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stamp-btn {
+  padding: 2px 7px;
+  font-size: 7px;
+  letter-spacing: 1px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: all 150ms;
+  white-space: nowrap;
+}
+.stamp-btn:hover { border-color: var(--active-color); color: var(--text-secondary); }
+
+/* ═══ BOTTOM ZONE — Keyboard OR Artifact Collector ═══ */
+.bottom-zone {
+  grid-column: 2 / 4;
+  grid-row: 4;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Zone mode toggle */
+.zone-modes {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.zone-mode-btn {
+  padding: 3px 10px;
+  font-size: 7px;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 150ms;
+  font-family: 'DM Mono', monospace;
+}
+.zone-mode-btn.active {
+  border-color: var(--active-color);
+  color: var(--active-color);
+  background: color-mix(in srgb, var(--active-color) 8%, transparent);
+}
+
+.zone-target {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.target-btn {
+  padding: 3px 8px;
+  font-size: 7px;
+  letter-spacing: 1px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 150ms;
+}
+.target-btn.active-target { border-color: var(--active-color); color: var(--active-color); }
+.target-btn.process-target { border-color: var(--process-color); color: var(--process-color); }
+.target-btn:not(.active-target):not(.process-target) { color: var(--text-dim); }
+
+/* Keyboard view */
+.zone-keyboard {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  height: calc(var(--bottom-h) - 32px);
+}
+
+.zone-keyboard.hidden { display: none; }
+
+.key-row {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+}
+
+.key {
+  height: 30px;
+  min-width: 30px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 100ms;
+  position: relative;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+.key:hover { background: var(--bg-hover); transform: translateY(-1px); }
+.key:active { transform: translateY(1px); }
+.key::after {
+  content: '';
+  position: absolute;
+  bottom: 2px; left: 3px; right: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--key-color, transparent);
+}
+
+.key.w50 { min-width: 48px; font-size: 8px; letter-spacing: 0.5px; }
+.key.w70 { min-width: 65px; font-size: 8px; }
+.key.space { flex: 1; max-width: 250px; }
+
+.key.gate-key {
+  border-color: color-mix(in srgb, var(--key-color, var(--border)) 40%, var(--border));
+  font-size: 10px;
+  min-width: 38px;
+}
+.key.gate-key .gs { font-size: 7px; position: absolute; top: 1px; right: 2px; }
+
+.key.action-key {
+  background: color-mix(in srgb, var(--key-color, var(--active-color)) 10%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--key-color, var(--active-color)) 25%, var(--border));
+  font-size: 8px;
+  letter-spacing: 0.5px;
+}
+
+.key.fork-key { font-size: 8px; }
+
+/* Artifact Collector view */
+.zone-artifacts {
+  padding: 6px 8px;
+  height: calc(var(--bottom-h) - 32px);
+  display: flex;
+  gap: 6px;
+  overflow: hidden;
+}
+.zone-artifacts.hidden { display: none; }
+
+.artifact-bucket {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.bucket-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.bucket-title {
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.bucket-count {
+  font-size: 7px;
+  color: var(--text-dim);
+  padding: 1px 5px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+}
+
+.bucket-add {
+  margin-left: auto;
+  font-size: 8px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  transition: all 150ms;
+}
+.bucket-add:hover { border-color: var(--active-color); color: var(--active-color); }
+
+.artifact-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 150ms;
+}
+.artifact-card:hover { border-color: var(--border-active); background: var(--bg-elevated); }
+.artifact-card.staged { border-left: 2px solid var(--fork-checkpoint); }
+.artifact-card.injected { border-left: 2px solid var(--active-color); opacity: 0.6; }
+
+.artifact-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.artifact-info { flex: 1; min-width: 0; }
+
+.artifact-name {
+  font-size: 9px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artifact-meta {
+  font-size: 7px;
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+
+.artifact-actions {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.artifact-act {
+  font-size: 7px;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: all 150ms;
+}
+.artifact-act:hover { border-color: var(--text-muted); color: var(--text-muted); }
+.artifact-act.inject-btn:hover { border-color: var(--active-color); color: var(--active-color); }
+.artifact-act.edit-btn:hover { border-color: var(--fork-checkpoint); color: var(--fork-checkpoint); }
+
+/* Divider between buckets */
+.bucket-divider {
+  width: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* Edit stage area */
+.edit-stage {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.edit-preview {
+  flex: 1;
+  background: var(--bg-void);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow-y: auto;
+  font-family: 'DM Mono', monospace;
+}
+
+.edit-controls {
+  display: flex;
+  gap: 3px;
+}
+
+.edit-ctrl {
+  flex: 1;
+  padding: 4px;
+  font-size: 7px;
+  letter-spacing: 1px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: all 150ms;
+}
+.edit-ctrl.inject-ctrl { color: var(--active-color); border-color: color-mix(in srgb, var(--active-color) 30%, var(--border)); }
+.edit-ctrl.inject-ctrl:hover { background: color-mix(in srgb, var(--active-color) 10%, transparent); }
+.edit-ctrl.process-ctrl { color: var(--process-color); border-color: color-mix(in srgb, var(--process-color) 30%, var(--border)); }
+.edit-ctrl.process-ctrl:hover { background: color-mix(in srgb, var(--process-color) 10%, transparent); }
+
+/* ═══ PROJECT TREE (left shelf) ═══ */
+.project {
+  margin: 3px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.project.active { border-color: color-mix(in srgb, var(--active-color) 30%, var(--border)); }
+
+.proj-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  background: var(--bg-panel);
+  transition: background 120ms;
+  font-size: 11px;
+}
+.proj-head:hover { background: var(--bg-surface); }
+
+.proj-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.proj-name { flex: 1; font-family: 'Instrument Sans', sans-serif; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj-n { font-size: 8px; color: var(--text-dim); }
+.proj-chev { font-size: 9px; color: var(--text-dim); transition: transform 200ms; }
+.project.open .proj-chev { transform: rotate(90deg); }
+
+.proj-tracks { display: none; padding: 2px 0 2px 4px; background: var(--bg-void); }
+.project.open .proj-tracks { display: block; }
+
+.track {
+  margin: 1px 3px;
+  border-radius: 3px;
+}
+
+.track-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--text-muted);
+  border-radius: 3px;
+  transition: all 120ms;
+}
+.track-head:hover { background: var(--bg-surface); color: var(--text-primary); }
+
+.track-icon { font-size: 9px; flex-shrink: 0; }
+.track-name { flex: 1; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track-n { font-size: 7px; padding: 1px 4px; background: var(--bg-elevated); border-radius: 2px; color: var(--text-dim); }
+
+.track-chats { display: none; padding: 1px 0 1px 12px; }
+.track.open .track-chats { display: block; }
+
+.chat-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  cursor: pointer;
+  font-size: 9px;
+  color: var(--text-muted);
+  border-radius: 2px;
+  transition: all 120ms;
+}
+.chat-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.chat-item.focus-active { background: color-mix(in srgb, var(--active-color) 10%, var(--bg-void)); color: var(--active-color); }
+.chat-item.process-active { background: color-mix(in srgb, var(--process-color) 8%, var(--bg-void)); color: var(--process-color); }
+
+.chat-num {
+  width: 14px; height: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 7px; font-weight: 500;
+  border-radius: 2px;
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+.chat-item.focus-active .chat-num { background: var(--active-color); color: var(--bg-void); }
+.chat-item.process-active .chat-num { background: var(--process-color); color: var(--bg-void); }
+
+.chat-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.fork-conn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px 2px 18px;
+}
+.fork-line { width: 10px; height: 1px; flex-shrink: 0; }
+.fork-tag {
+  font-size: 6px;
+  letter-spacing: 1.5px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+/* ═══ RIGHT SHELF SPECIFICS ═══ */
+.art-section {
+  margin: 4px 6px;
+}
+
+.art-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  cursor: pointer;
+  font-size: 9px;
+  color: var(--text-muted);
+  border-radius: 3px;
+  transition: all 120ms;
+}
+.art-section-head:hover { background: var(--bg-surface); }
+
+.art-sec-icon { font-size: 10px; }
+.art-sec-name { flex: 1; font-size: 9px; letter-spacing: 0.5px; }
+.art-sec-n { font-size: 7px; color: var(--text-dim); }
+
+.art-list { padding: 2px 0 2px 8px; }
+
+.art-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  cursor: pointer;
+  font-size: 8px;
+  color: var(--text-muted);
+  border-radius: 2px;
+  transition: all 120ms;
+  border-left: 2px solid transparent;
+}
+.art-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.art-item.selected { border-left-color: var(--fork-checkpoint); color: var(--text-primary); }
+.art-item .art-type { font-size: 10px; flex-shrink: 0; }
+.art-item .art-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.art-item .art-from { font-size: 7px; color: var(--text-dim); }
+
+/* ═══ SCROLLBAR ═══ */
+::-webkit-scrollbar { width: 2px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1a1a2e; border-radius: 1px; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- LEFT SHELF -->
+  <div class="shelf-left" id="shelf-left">
+    <div class="shelf-header">
+      <div class="shelf-toggle" onclick="toggleLeft()">&#9776;</div>
+      <div class="shelf-title">BRANCHES</div>
+    </div>
+    <div class="shelf-body" id="left-body"></div>
+    <div class="shelf-foot">
+      <span id="lf-chats">0 chats</span>
+      <span id="lf-forks">0 forks</span>
+    </div>
+  </div>
+
+  <!-- FOCUS TAB BAR -->
+  <div class="pane-tabs focus-tabs" id="focus-tabs"></div>
+
+  <!-- PROCESS TAB BAR -->
+  <div class="pane-tabs process-tabs" id="process-tabs"></div>
+
+  <!-- FOCUS PANE -->
+  <div class="pane focus-pane" id="focus-pane"></div>
+
+  <!-- PROCESS PANE -->
+  <div class="pane process-pane" id="process-pane"></div>
+
+  <!-- STAMP BAR -->
+  <div class="stamp-bar" id="stamp-bar"></div>
+
+  <!-- BOTTOM ZONE -->
+  <div class="bottom-zone" id="bottom-zone"></div>
+
+  <!-- RIGHT SHELF -->
+  <div class="shelf-right" id="shelf-right">
+    <div class="shelf-header">
+      <div class="shelf-title">ARTIFACTS</div>
+      <div class="shelf-toggle" onclick="toggleRight()">&#9776;</div>
+    </div>
+    <div class="shelf-body" id="right-body"></div>
+    <div class="shelf-foot">
+      <span id="rf-count">0 collected</span>
+      <span id="rf-staged">0 staged</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const FORKS = {
+  explore:    { i: '\u2192', c: 'var(--fork-explore)',    l: 'EXPLORE' },
+  pivot:      { i: '\u21BB', c: 'var(--fork-pivot)',      l: 'PIVOT' },
+  refine:     { i: '\u25B7', c: 'var(--fork-refine)',     l: 'REFINE' },
+  challenge:  { i: '\u2694', c: 'var(--fork-challenge)',  l: 'CHALLENGE' },
+  merge:      { i: '\u2727', c: 'var(--fork-merge)',      l: 'MERGE' },
+  checkpoint: { i: '\u25C6', c: 'var(--fork-checkpoint)', l: 'SAVE' },
+  dead:       { i: '\u2715', c: 'var(--fork-dead)',       l: 'DEAD' },
+};
+
+const GS = { yes: '\u25CF', no: '\u2715', open: '\u25CB', half: '\u25D0', revisit: '\u21BA' };
+const GC = ['open', 'half', 'yes', 'no'];
+
+// ─── STATE ───
+let focusChat = 'c3';
+let processChat = 'c2';
+let gates = [
+  { l: 'A', q: 'Blue channel verification?', s: 'yes' },
+  { l: 'B', q: 'JPEG kill mechanism?', s: 'revisit' },
+  { l: 'C', q: 'Temporal fragmentation?', s: 'no' },
+  { l: 'D', q: 'Gematria visible?', s: 'open' },
+  { l: 'E', q: 'Boustrophedon UX?', s: 'half' },
+];
+let convState = 'OPEN';
+let bottomMode = 'keyboard'; // 'keyboard' | 'artifacts'
+let kbTarget = 'focus'; // which pane keyboard types to
+let selectedArtifact = null;
+
+// ─── DATA ───
+const projects = [
+  { id: 'gos', name: 'GentlyOS', color: '#00e5a0', open: true, tracks: [
+    { id: 'core', name: 'Core Architecture', ft: 'explore', open: true, chats: [
+      { id: 'c1', name: 'Crate structure', d: 12, n: 1 },
+      { id: 'c2', name: 'WASM compilation', d: 8, n: 2 },
+      { id: 'c3', name: 'IPC bridge', d: 6, n: 3 },
+    ], forks: [
+      { type: 'refine', track: { id: 'wasm-opt', name: 'WASM Optimization', ft: 'refine', open: false, chats: [
+        { id: 'c4', name: 'Size reduction', d: 4, n: 1 },
+        { id: 'c5', name: 'SIMD paths', d: 3, n: 2 },
+      ]}}
+    ]},
+    { id: 'olo', name: 'OLO Guard', ft: 'explore', open: false, chats: [
+      { id: 'c6', name: 'Blue channel', d: 14, n: 1 },
+      { id: 'c7', name: 'Gematria engine', d: 9, n: 2 },
+      { id: 'c8', name: 'Adversarial test', d: 5, n: 3 },
+    ], forks: [
+      { type: 'challenge', track: { id: 'png', name: 'PNG Alternative', ft: 'challenge', open: false, chats: [
+        { id: 'c9', name: 'PNG analysis', d: 6, n: 1 },
+      ]}},
+    ]},
+    { id: 'stamp', name: 'Stamp Protocol', ft: 'explore', open: false, chats: [
+      { id: 'c10', name: 'Gate system', d: 7, n: 1 },
+    ]},
+  ]},
+  { id: 'sec', name: 'Security Research', color: '#ff3d71', open: false, tracks: [
+    { id: 'uefi', name: 'UEFI Analysis', ft: 'explore', open: false, chats: [
+      { id: 'c11', name: 'Rootkit sigs', d: 18, n: 1 },
+      { id: 'c12', name: 'Firmware extract', d: 11, n: 2 },
+    ]},
+  ]},
+];
+
+const artifacts = [
+  { id: 'a1', type: 'code', name: 'stamp.py', from: 'c10', lang: 'python', status: 'staged' },
+  { id: 'a2', type: 'code', name: 'olo_encoder.rs', from: 'c6', lang: 'rust', status: 'collected' },
+  { id: 'a3', type: 'doc', name: 'architecture.md', from: 'c3', lang: 'md', status: 'collected' },
+  { id: 'a4', type: 'code', name: 'gematria_roll.py', from: 'c7', lang: 'python', status: 'injected' },
+  { id: 'a5', type: 'html', name: 'olo_display.html', from: 'c6', lang: 'html', status: 'staged' },
+  { id: 'a6', type: 'data', name: 'gate_states.json', from: 'c10', lang: 'json', status: 'collected' },
+];
+
+const editBucket = [
+  { id: 'e1', desc: 'Change WASM vault to use XChaCha20', target: 'focus', from: 'c5' },
+  { id: 'e2', desc: 'Add gate F: WebP as alternative format', target: 'both', from: 'c8' },
+  { id: 'e3', desc: 'Pin finding: blue channel 75% loss confirmed', target: 'process', from: 'c6' },
+];
+
+// ─── RENDER LEFT SHELF ───
+function renderLeft() {
+  let h = '', tc = 0, fc = 0;
+  projects.forEach(p => {
+    h += `<div class="project ${p.open ? 'open' : ''} ${p.id === 'gos' ? 'active' : ''}">`;
+    h += `<div class="proj-head" onclick="togProj('${p.id}')">`;
+    h += `<div class="proj-dot" style="background:${p.color}"></div>`;
+    h += `<div class="proj-name">${p.name}</div>`;
+    const cn = cntChats(p); tc += cn;
+    h += `<div class="proj-n">${cn}</div><div class="proj-chev">\u25B6</div></div>`;
+    h += `<div class="proj-tracks">`;
+    p.tracks.forEach(t => {
+      h += renderTrack(t, 0);
+      if (t.forks) t.forks.forEach(f => {
+        fc++;
+        h += `<div class="fork-conn"><div class="fork-line" style="background:${FORKS[f.type].c}"></div>`;
+        h += `<span class="fork-tag" style="color:${FORKS[f.type].c};background:color-mix(in srgb,${FORKS[f.type].c} 12%,transparent)">${FORKS[f.type].i} ${FORKS[f.type].l}</span></div>`;
+        h += renderTrack(f.track, 1);
+      });
+    });
+    h += `</div></div>`;
+  });
+  document.getElementById('left-body').innerHTML = h;
+  document.getElementById('lf-chats').textContent = tc + ' chats';
+  document.getElementById('lf-forks').textContent = fc + ' forks';
+}
+
+function renderTrack(t, indent) {
+  const f = FORKS[t.ft];
+  let h = `<div class="track ${t.open ? 'open' : ''}" style="margin-left:${indent*6}px">`;
+  h += `<div class="track-head" onclick="togTrack(this)">`;
+  h += `<span class="track-icon" style="color:${f.c}">${f.i}</span>`;
+  h += `<span class="track-name">${t.name}</span>`;
+  h += `<span class="track-n">${t.chats.length}</span></div>`;
+  h += `<div class="track-chats">`;
+  t.chats.forEach(c => {
+    const isFocus = c.id === focusChat;
+    const isProcess = c.id === processChat;
+    h += `<div class="chat-item ${isFocus?'focus-active':''} ${isProcess?'process-active':''}" onclick="clickChat('${c.id}')" ondblclick="dblChat('${c.id}')">`;
+    h += `<span class="chat-num" style="${isFocus?`background:var(--active-color);color:var(--bg-void)`:isProcess?`background:var(--process-color);color:var(--bg-void)`:''}">${c.n}</span>`;
+    h += `<span class="chat-label">${c.name}</span></div>`;
+  });
+  h += `</div></div>`;
+  return h;
+}
+
+function cntChats(p) { let n=0; p.tracks.forEach(t=>{n+=t.chats.length; if(t.forks)t.forks.forEach(f=>n+=f.track.chats.length);}); return n; }
+
+// ─── RENDER RIGHT SHELF ───
+function renderRight() {
+  const grouped = { collected: [], staged: [], injected: [] };
+  artifacts.forEach(a => grouped[a.status]?.push(a));
+
+  const typeIcon = { code: '\u{1F4C4}', doc: '\u{1F4DD}', html: '\u{1F310}', data: '\u{1F4CA}' };
+
+  let h = '';
+
+  // Edits bucket
+  h += `<div class="art-section"><div class="art-section-head"><span class="art-sec-icon">\u270F\uFE0F</span><span class="art-sec-name">PENDING EDITS</span><span class="art-sec-n">${editBucket.length}</span></div>`;
+  h += `<div class="art-list">`;
+  editBucket.forEach(e => {
+    const tColor = e.target === 'focus' ? 'var(--active-color)' : e.target === 'process' ? 'var(--process-color)' : 'var(--fork-merge)';
+    h += `<div class="art-item" onclick="selectEdit('${e.id}')"><span class="art-type" style="color:${tColor}">\u25B8</span>`;
+    h += `<span class="art-name">${e.desc}</span><span class="art-from">${e.from}</span></div>`;
+  });
+  h += `</div></div>`;
+
+  // Staged
+  h += `<div class="art-section"><div class="art-section-head"><span class="art-sec-icon">\u{1F4E6}</span><span class="art-sec-name">STAGED</span><span class="art-sec-n">${grouped.staged.length}</span></div>`;
+  h += `<div class="art-list">`;
+  grouped.staged.forEach(a => {
+    h += `<div class="art-item ${a.id===selectedArtifact?'selected':''}" onclick="selectArt('${a.id}')">`;
+    h += `<span class="art-type">${typeIcon[a.type]||'\u{1F4C4}'}</span>`;
+    h += `<span class="art-name">${a.name}</span><span class="art-from">${a.lang}</span></div>`;
+  });
+  h += `</div></div>`;
+
+  // Collected
+  h += `<div class="art-section"><div class="art-section-head"><span class="art-sec-icon">\u{1F4CB}</span><span class="art-sec-name">COLLECTED</span><span class="art-sec-n">${grouped.collected.length}</span></div>`;
+  h += `<div class="art-list">`;
+  grouped.collected.forEach(a => {
+    h += `<div class="art-item ${a.id===selectedArtifact?'selected':''}" onclick="selectArt('${a.id}')">`;
+    h += `<span class="art-type">${typeIcon[a.type]||'\u{1F4C4}'}</span>`;
+    h += `<span class="art-name">${a.name}</span><span class="art-from">${a.lang}</span></div>`;
+  });
+  h += `</div></div>`;
+
+  // Injected
+  if (grouped.injected.length) {
+    h += `<div class="art-section"><div class="art-section-head"><span class="art-sec-icon">\u2714</span><span class="art-sec-name">INJECTED</span><span class="art-sec-n">${grouped.injected.length}</span></div>`;
+    h += `<div class="art-list">`;
+    grouped.injected.forEach(a => {
+      h += `<div class="art-item" style="opacity:0.5"><span class="art-type">${typeIcon[a.type]||'\u{1F4C4}'}</span>`;
+      h += `<span class="art-name">${a.name}</span><span class="art-from">${a.lang}</span></div>`;
+    });
+    h += `</div></div>`;
+  }
+
+  document.getElementById('right-body').innerHTML = h;
+  document.getElementById('rf-count').textContent = artifacts.length + ' collected';
+  document.getElementById('rf-staged').textContent = grouped.staged.length + ' staged';
+}
+
+// ─── RENDER TAB BARS ───
+function renderTabs() {
+  const fi = findChat(focusChat);
+  const pi = findChat(processChat);
+
+  document.getElementById('focus-tabs').innerHTML = `
+    <span class="pane-label-tag focus-tag">FOCUS</span>
+    <div class="ptab active focus-active"><div class="ptab-dot" style="background:${fi.color}"></div>
+    <span class="ptab-name">${fi.chat.name}</span><span class="ptab-x">\u2715</span></div>
+  `;
+
+  document.getElementById('process-tabs').innerHTML = `
+    <span class="pane-label-tag process-tag">PROCESS</span>
+    <div class="ptab active process-active"><div class="ptab-dot" style="background:${pi.color}"></div>
+    <span class="ptab-name">${pi.chat.name}</span><span class="ptab-x">\u2715</span></div>
+  `;
+}
+
+// ─── RENDER PANES ───
+function renderPanes() {
+  const fi = findChat(focusChat);
+  const pi = findChat(processChat);
+  const stamp = mkStamp();
+
+  document.getElementById('focus-pane').innerHTML = `
+    <div class="pane-content"><div class="sim-chat">
+      <div class="sim-msg user"><div class="stamp-line">${stamp}</div>
+      Let's work on the IPC bridge between WASM and Electron main process.</div>
+      <div class="sim-msg claude">The IPC bridge needs three message types: file operations, CLI spawning, and vault access. The bridge detects its environment and routes through Native Messaging or direct IPC...</div>
+      <div class="sim-msg user"><div class="stamp-line">${mkStamp(7)}</div>
+      What about the credential vault in WASM memory?</div>
+      <div class="sim-msg claude">WASM linear memory is ideal. AES-256-GCM encryption within the module's address space. JavaScript cannot inspect WASM memory directly, giving us hardware-grade isolation...</div>
+    </div></div>
+    <div class="pane-input">
+      <input class="pane-input-field" placeholder="Focus: Type or use keyboard..." id="focus-input">
+      <div class="pane-send focus-send">SEND</div>
+    </div>
+  `;
+
+  document.getElementById('process-pane').innerHTML = `
+    <div class="pane-content"><div class="sim-chat">
+      <div class="sim-msg user"><div class="stamp-line">[OLO|\u{1F33F}core/wasm|\u{1F4CD}6/8|\u26A1DONE|\u{1F4CC}wasm-sub-1mb]</div>
+      Can we get the WASM binary under 1MB?</div>
+      <div class="sim-msg claude process-msg">With wasm-opt and tree-shaking: 847KB. Gematria tables 120KB, transliteration maps 45KB, encoder logic the rest. We can lazy-load the gematria tables to cut initial load to 680KB...</div>
+      <div class="sim-msg user"><div class="stamp-line">[OLO|\u{1F33F}core/wasm|\u{1F4CD}7/8|\u26A1DONE|\u{1F4CC}lazy-load-confirmed]</div>
+      Perfect. That's confirmed then.</div>
+    </div></div>
+    <div class="pane-input">
+      <input class="pane-input-field process-input" placeholder="Process: Type or use keyboard..." id="process-input">
+      <div class="pane-send process-send">SEND</div>
+    </div>
+  `;
+}
+
+// ─── RENDER STAMP BAR ───
+function renderStamp() {
+  const s = mkStamp();
+  document.getElementById('stamp-bar').innerHTML = `
+    <div class="stamp-live" style="color:${kbTarget==='focus'?'var(--active-color)':'var(--process-color)'}">${s}</div>
+    <div class="stamp-btn" onclick="copyStamp()">\u{1F4CB} COPY</div>
+    <div class="stamp-btn" onclick="">\u26A1 ${convState}</div>
+    <div class="stamp-btn" onclick="">\u2B06 REHYDRATE</div>
+  `;
+}
+
+// ─── RENDER BOTTOM ZONE ───
+function renderBottom() {
+  let h = `<div class="zone-modes">`;
+  h += `<div class="zone-mode-btn ${bottomMode==='keyboard'?'active':''}" onclick="setBottom('keyboard')">\u2328 KEYBOARD</div>`;
+  h += `<div class="zone-mode-btn ${bottomMode==='artifacts'?'active':''}" onclick="setBottom('artifacts')">\u{1F4E6} ARTIFACTS</div>`;
+  h += `<div class="zone-target">`;
+  h += `<div class="target-btn ${kbTarget==='focus'?'active-target':''}" onclick="setTarget('focus')">A FOCUS</div>`;
+  h += `<div class="target-btn ${kbTarget==='process'?'process-target':''}" onclick="setTarget('process')">B PROCESS</div>`;
+  h += `</div></div>`;
+
+  if (bottomMode === 'keyboard') {
+    h += renderKeyboard();
+  } else {
+    h += renderArtifactCollector();
+  }
+
+  document.getElementById('bottom-zone').innerHTML = h;
+}
+
+function renderKeyboard() {
+  const info = findChat(kbTarget === 'focus' ? focusChat : processChat);
+  const tc = kbTarget === 'focus' ? 'var(--active-color)' : 'var(--process-color)';
+  const r1 = 'qwertyuiop'.split('');
+  const r2 = 'asdfghjkl'.split('');
+  const r3 = 'zxcvbnm'.split('');
+
+  function kc(i,ri) { return tc; }
+
+  const gateKeys = gates.map(g => {
+    const gc = g.s==='yes'?'var(--fork-explore)':g.s==='no'?'var(--fork-challenge)':g.s==='half'?'var(--fork-checkpoint)':g.s==='revisit'?'var(--fork-pivot)':'var(--text-dim)';
+    return `<div class="key gate-key" style="--key-color:${gc}" onclick="cycleGate('${g.l}')">${g.l}<span class="gs">${GS[g.s]}</span></div>`;
+  }).join('');
+
+  const stateKeys = ['OPEN','GATE','DONE','FORK','HOLD'].map(s =>
+    `<div class="key action-key" style="--key-color:${s===convState?tc:'var(--text-dim)'}" onclick="setState('${s}')">\u26A1${s}</div>`
+  ).join('');
+
+  return `<div class="zone-keyboard">
+    <div class="key-row">${gateKeys}<div style="width:6px"></div>${stateKeys}</div>
+    <div class="key-row">${r1.map((c,i)=>`<div class="key" style="--key-color:${kc(i,0)}" onclick="typeKey('${c}')">${c}</div>`).join('')}<div class="key w50" style="--key-color:var(--fork-checkpoint)">DEL</div></div>
+    <div class="key-row"><div class="key w50" style="--key-color:var(--text-dim)">TAB</div>${r2.map((c,i)=>`<div class="key" style="--key-color:${kc(i,1)}" onclick="typeKey('${c}')">${c}</div>`).join('')}<div class="key w50" style="--key-color:${tc}">RET</div></div>
+    <div class="key-row"><div class="key w70" style="--key-color:var(--text-dim)">SHIFT</div>${r3.map((c,i)=>`<div class="key" style="--key-color:${kc(i,2)}" onclick="typeKey('${c}')">${c}</div>`).join('')}<div class="key w70" style="--key-color:var(--text-dim)">SHIFT</div></div>
+    <div class="key-row">
+      <div class="key action-key" style="--key-color:var(--fork-checkpoint)" onclick="save()">\u25C6 SAVE</div>
+      <div class="key action-key" style="--key-color:var(--fork-explore)" onclick="">\u{1F33F} FORK</div>
+      <div class="key action-key ${kbTarget==='focus'?'':''}}" style="--key-color:var(--active-color)" onclick="setTarget('focus')">A</div>
+      <div class="key space" style="--key-color:${tc}" onclick="typeKey(' ')"></div>
+      <div class="key action-key" style="--key-color:var(--process-color)" onclick="setTarget('process')">B</div>
+      <div class="key action-key" style="--key-color:var(--fork-merge)" onclick="">\u{1F4CC} PIN</div>
+      <div class="key action-key" style="--key-color:var(--fork-refine)" onclick="">\u{1F441} LOOK</div>
+    </div>
+  </div>`;
+}
+
+function renderArtifactCollector() {
+  const typeIcon = { code: '\u{1F4C4}', doc: '\u{1F4DD}', html: '\u{1F310}', data: '\u{1F4CA}' };
+  const staged = artifacts.filter(a => a.status === 'staged');
+  const collected = artifacts.filter(a => a.status === 'collected');
+  const sel = artifacts.find(a => a.id === selectedArtifact);
+
+  let h = `<div class="zone-artifacts">`;
+
+  // Artifact list
+  h += `<div class="artifact-bucket">`;
+  h += `<div class="bucket-header"><span class="bucket-title">AVAILABLE</span><span class="bucket-count">${staged.length + collected.length}</span>`;
+  h += `<div class="bucket-add" onclick="">+ COLLECT</div></div>`;
+
+  staged.forEach(a => {
+    h += `<div class="artifact-card staged" onclick="selectArt('${a.id}')">`;
+    h += `<div class="artifact-icon">${typeIcon[a.type]}</div>`;
+    h += `<div class="artifact-info"><div class="artifact-name">${a.name}</div><div class="artifact-meta">${a.lang} \u00B7 from ${a.from} \u00B7 staged</div></div>`;
+    h += `<div class="artifact-actions"><div class="artifact-act inject-btn" onclick="event.stopPropagation()">INJECT</div><div class="artifact-act edit-btn" onclick="event.stopPropagation()">EDIT</div></div>`;
+    h += `</div>`;
+  });
+
+  collected.forEach(a => {
+    h += `<div class="artifact-card" onclick="selectArt('${a.id}')">`;
+    h += `<div class="artifact-icon">${typeIcon[a.type]}</div>`;
+    h += `<div class="artifact-info"><div class="artifact-name">${a.name}</div><div class="artifact-meta">${a.lang} \u00B7 from ${a.from}</div></div>`;
+    h += `<div class="artifact-actions"><div class="artifact-act" onclick="event.stopPropagation()">STAGE</div></div>`;
+    h += `</div>`;
+  });
+  h += `</div>`;
+
+  // Divider
+  h += `<div class="bucket-divider"></div>`;
+
+  // Edit/preview stage
+  h += `<div class="edit-stage">`;
+  h += `<div class="bucket-header"><span class="bucket-title">${sel ? 'PREVIEW' : 'EDIT STAGE'}</span></div>`;
+  h += `<div class="edit-preview">${sel
+    ? `<strong>${sel.name}</strong>\n\nType: ${sel.type}\nLang: ${sel.lang}\nFrom: chat ${sel.from}\nStatus: ${sel.status}\n\n--- content preview ---\n${sel.type === 'code' ? `fn main() {\n  // ${sel.name}\n  let guard = OloGuard::new();\n  guard.encode(input);\n}` : 'Document content here...'}`
+    : editBucket.map(e => `\u25B8 ${e.desc}\n  target: ${e.target} | from: ${e.from}`).join('\n\n')
+  }</div>`;
+  h += `<div class="edit-controls">`;
+  h += `<div class="edit-ctrl inject-ctrl" onclick="">INJECT \u2192 FOCUS</div>`;
+  h += `<div class="edit-ctrl process-ctrl" onclick="">INJECT \u2192 PROCESS</div>`;
+  h += `</div></div>`;
+
+  h += `</div>`;
+  return h;
+}
+
+// ─── HELPERS ───
+function findChat(id) {
+  for (const p of projects) for (const t of p.tracks) {
+    for (const c of t.chats) if (c.id === id) return { chat: c, track: t, proj: p, color: FORKS[t.ft].c };
+    if (t.forks) for (const f of t.forks) for (const c of f.track.chats) if (c.id === id) return { chat: c, track: f.track, proj: p, color: FORKS[f.type].c };
+  }
+  return { chat: { name: '?', d: 0 }, track: { ft: 'explore' }, proj: projects[0], color: '#666' };
+}
+
+function mkStamp(depth) {
+  const i = findChat(focusChat);
+  const d = depth || i.chat.d;
+  const gs = gates.map(g => g.l + GS[g.s]).join('');
+  const ts = new Date().toISOString().slice(5,16).replace(/-/g,'').replace(':','');
+  return `[OLO|\u{1F33F}${i.track.id}|\u{1F4CD}${d}/${i.chat.d}|\u26A1${convState}|\u{1F512}${gs}|\u{1F4CC}ipc-bridge|\u23F1${ts}]`;
+}
+
+// ─── INTERACTIONS ───
+function toggleLeft() { document.getElementById('shelf-left').classList.toggle('collapsed'); }
+function toggleRight() { document.getElementById('shelf-right').classList.toggle('collapsed'); }
+
+function togProj(id) { const p = projects.find(x => x.id === id); if (p) { p.open = !p.open; renderLeft(); } }
+function togTrack(el) { el.parentElement.classList.toggle('open'); }
+
+function clickChat(id) {
+  if (kbTarget === 'focus') { processChat = id; }
+  else { focusChat = id; }
+  renderAll();
+}
+
+function dblChat(id) {
+  const prev = focusChat;
+  focusChat = id;
+  processChat = prev;
+  document.documentElement.style.setProperty('--active-color', findChat(focusChat).color);
+  renderAll();
+}
+
+function cycleGate(letter) {
+  const g = gates.find(x => x.l === letter);
+  if (!g) return;
+  const i = GC.indexOf(g.s);
+  g.s = GC[(i + 1) % GC.length];
+  renderBottom();
+  renderStamp();
+}
+
+function setState(s) { convState = s; renderBottom(); renderStamp(); }
+function setBottom(mode) { bottomMode = mode; renderBottom(); }
+function setTarget(t) {
+  kbTarget = t;
+  renderBottom();
+  renderStamp();
+  // Focus the right input
+  const inp = document.getElementById(t === 'focus' ? 'focus-input' : 'process-input');
+  if (inp) inp.focus();
+}
+
+function typeKey(ch) {
+  const inp = document.getElementById(kbTarget === 'focus' ? 'focus-input' : 'process-input');
+  if (inp) { inp.value += ch; inp.focus(); }
+}
+
+function selectArt(id) {
+  selectedArtifact = selectedArtifact === id ? null : id;
+  renderBottom();
+  renderRight();
+}
+function selectEdit(id) { selectedArtifact = null; renderBottom(); }
+
+function copyStamp() {
+  navigator.clipboard?.writeText(mkStamp());
+}
+function save() { alert('Checkpoint saved + DOM captured + stamp recorded'); }
+
+function renderAll() {
+  renderLeft();
+  renderRight();
+  renderTabs();
+  renderPanes();
+  renderStamp();
+  renderBottom();
+}
+
+// ─── INIT ───
+document.documentElement.style.setProperty('--active-color', findChat(focusChat).color);
+renderAll();
+</script>
+</body>
+</html>

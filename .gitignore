@@ -1,0 +1,38 @@
+# Build outputs
+result
+result-*
+
+# Rust
+target/
+release-assets/*.amd64
+
+# Nix
+.direnv/
+.nix-profile
+.nix-defexpr
+.nix-channels
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.kate-swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (app directory)
+node_modules/
+
+# Archives
+*.zip
+
+# Secrets - never commit
+*.key
+*.pem
+secrets/
+.env
+.env.*

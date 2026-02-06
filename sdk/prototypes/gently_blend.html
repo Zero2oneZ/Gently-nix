@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GentlyOS — The Blend</title>
+<style>
+:root {
+  --bg:       #08080c;
+  --shelf:    #0c0c12;
+  --panel:    #0e0e16;
+  --surface:  #12121c;
+  --elevated: #18182a;
+  --hover:    #1e1e38;
+  --border:   #1a1a2e;
+  --border-f: #2a2a4e;
+  --text:     #e0e0e8;
+  --muted:    #9999aa;
+  --dim:      #666680;
+  --vdim:     #333348;
+  --focus:    #00e5a0;
+  --process:  #4d9fff;
+  --proton:   #ff6b9d;
+  --warn:     #ffd93d;
+  --code:     #c77dff;
+  --dead:     #ff4444;
+  --frozen:   #88ccff;
+  --doc:      #4ecdc4;
+  --student:  #ff9f43;
+  --finance:  #a29bfe;
+  --synth:    #fd79a8;
+  --shelf-w:  48px;
+  --shelf-expanded: 200px;
+  --bottom-h: 46px;
+  --bottom-expanded: 240px;
+  --stamp-h:  26px;
+  --const-h:  24px;
+  --font:     'SF Mono','JetBrains Mono','Fira Code',monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--font); height:100vh; overflow:hidden; user-select:none; }
+
+/* SVG Icons */
+.i { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; flex-shrink:0; }
+.i svg { width:12px; height:12px; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; fill:none; stroke:currentColor; }
+.i.lg svg { width:16px; height:16px; }
+.i.xl svg { width:20px; height:20px; }
+
+.glow { filter: drop-shadow(0 0 3px currentColor) drop-shadow(0 0 6px color-mix(in srgb, currentColor 35%, transparent)); }
+
+/* ═══ MASTER GRID ═══ */
+.shell {
+  display: grid;
+  grid-template-columns: var(--shelf-w) 1fr var(--shelf-w);
+  grid-template-rows: var(--const-h) 1fr var(--stamp-h) var(--bottom-h);
+  height: 100vh;
+  transition: grid-template-columns 250ms ease, grid-template-rows 250ms ease;
+}
+.shell.left-open { grid-template-columns: var(--shelf-expanded) 1fr var(--shelf-w); }
+.shell.right-open { grid-template-columns: var(--shelf-w) 1fr var(--shelf-expanded); }
+.shell.both-open { grid-template-columns: var(--shelf-expanded) 1fr var(--shelf-expanded); }
+.shell.kb-open { grid-template-rows: var(--const-h) 1fr var(--stamp-h) var(--bottom-expanded); }
+
+/* ═══ CONSTANTS / GENESIS BAR ═══ */
+.genesis-bar {
+  grid-column: 1/-1;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 6px; gap: 4px;
+  font-size: 7px; overflow: hidden;
+}
+.genesis-key {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 6px; background: color-mix(in srgb, var(--dead) 6%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--dead) 15%, var(--border));
+  border-radius: 3px; color: var(--dead); letter-spacing: 0.5px; flex-shrink: 0;
+}
+.genesis-key .i { color: var(--dead); }
+.genesis-key.locked { color: var(--focus); background: color-mix(in srgb, var(--focus) 6%, var(--surface)); border-color: color-mix(in srgb, var(--focus) 15%, var(--border)); }
+.genesis-key.locked .i { color: var(--focus); }
+
+.chain-badge {
+  padding: 2px 6px; border-radius: 3px; font-size: 6px; letter-spacing: 1px;
+  border: 1px solid var(--border); color: var(--dim); flex-shrink: 0;
+}
+.const-chip {
+  padding: 2px 6px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 3px; color: var(--dim); flex-shrink: 0; white-space: nowrap;
+}
+.const-chip b { color: var(--text); }
+.genesis-spacer { flex: 1; }
+
+/* Face indicator */
+.face-badge {
+  padding: 2px 8px; border-radius: 3px; font-size: 7px; letter-spacing: 1px;
+  border: 1px solid; display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+  transition: all 200ms;
+}
+
+/* ═══ LEFT SHELF (rotating) ═══ */
+.shelf-left {
+  grid-row: 2/4;
+  background: var(--shelf); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden; transition: all 250ms ease;
+}
+
+.shelf-rail {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 4px 0; gap: 1px; width: 48px; flex-shrink: 0;
+}
+.rail-btn {
+  width: 38px; height: 34px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; border-radius: 4px; color: var(--dim); transition: all 120ms;
+  position: relative;
+}
+.rail-btn:hover { color: var(--text); background: var(--surface); }
+.rail-btn.active { color: var(--focus); }
+.rail-btn.active::before {
+  content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px;
+  background: currentColor; border-radius: 1px;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+.rail-btn .badge {
+  position: absolute; top: 3px; right: 5px;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--proton);
+  filter: drop-shadow(0 0 2px var(--proton));
+}
+
+/* Expanded shelf content */
+.shelf-content {
+  flex: 1; overflow: hidden;
+  display: none; /* shown when expanded */
+  border-left: 1px solid var(--border);
+  font-size: 9px;
+}
+.shell.left-open .shelf-left .shelf-content,
+.shell.both-open .shelf-left .shelf-content { display: flex; flex-direction: column; }
+
+.sc-header {
+  padding: 6px 8px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.sc-title { font-size: 7px; letter-spacing: 2px; color: var(--dim); }
+.sc-body { flex: 1; overflow-y: auto; padding: 3px; }
+.sc-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px; border-radius: 3px; cursor: pointer;
+  color: var(--muted); transition: all 100ms; margin: 1px 0; font-size: 9px;
+}
+.sc-item:hover { background: var(--surface); color: var(--text); }
+.sc-item.active { color: var(--focus); background: color-mix(in srgb, var(--focus) 6%, var(--bg)); }
+.sc-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.sc-meta { margin-left: auto; font-size: 7px; color: var(--dim); }
+.sc-divider { font-size: 6px; letter-spacing: 1.5px; color: var(--vdim); padding: 6px 6px 2px; }
+
+/* ═══ RIGHT SHELF (rotating) ═══ */
+.shelf-right {
+  grid-row: 2/4;
+  background: var(--shelf); border-left: 1px solid var(--border);
+  display: flex; flex-direction: row-reverse;
+  overflow: hidden; transition: all 250ms ease;
+}
+.shelf-right .shelf-rail { border-left: none; }
+.shelf-right .rail-btn.active::before { left: auto; right: 0; }
+.shelf-right .shelf-content { border-left: none; border-right: 1px solid var(--border); }
+.shell.right-open .shelf-right .shelf-content,
+.shell.both-open .shelf-right .shelf-content { display: flex; flex-direction: column; }
+
+/* ═══ MAIN PANE AREA ═══ */
+.pane-area {
+  display: flex; overflow: hidden; position: relative;
+}
+
+/* Pane */
+.pane {
+  display: flex; flex-direction: column; overflow: hidden;
+  transition: flex 200ms ease; min-width: 0;
+}
+.pane.hidden { flex: 0 !important; min-width: 0; max-width: 0; opacity: 0; pointer-events: none; }
+
+.pane-head {
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 6px; height: 22px; font-size: 8px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.ph-dot { width: 5px; height: 5px; border-radius: 50%; }
+.ph-label { letter-spacing: 1px; font-weight: 600; font-size: 7px; }
+.ph-ctx { flex: 1; text-align: center; color: var(--dim); font-size: 7px; }
+.ph-ctrl {
+  padding: 1px 5px; font-size: 6px; letter-spacing: 0.5px;
+  border: 1px solid var(--border); border-radius: 2px;
+  cursor: pointer; color: var(--dim); background: transparent;
+}
+.ph-ctrl:hover { border-color: var(--muted); color: var(--muted); }
+
+.pane-body { flex: 1; background: var(--bg); overflow: hidden; position: relative; }
+
+.pane-divider {
+  width: 3px; flex-shrink: 0; background: var(--border);
+  cursor: col-resize; transition: background 200ms;
+}
+.pane-divider:hover { background: var(--focus); box-shadow: 0 0 6px var(--focus); }
+
+/* Chat mock */
+.chat-area {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  padding: 12px;
+}
+.chat-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px; }
+.msg { max-width: 85%; padding: 7px 10px; border-radius: 6px; font-size: 9px; line-height: 1.5; }
+.msg.u { background: var(--elevated); border: 1px solid var(--border); color: var(--muted); align-self: flex-end; }
+.msg.c { background: var(--surface); color: var(--text); align-self: flex-start; }
+.msg-st { font-size: 6px; margin-bottom: 2px; opacity: 0.5; }
+.msg .tiny-app {
+  margin: 6px 0; padding: 8px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; font-size: 8px; position: relative;
+}
+.tiny-app-label { font-size: 5px; letter-spacing: 1.5px; color: var(--dim); margin-bottom: 4px; }
+.tiny-app-actions { display: flex; gap: 3px; margin-top: 6px; }
+.tiny-app-btn {
+  padding: 2px 6px; font-size: 6px; border: 1px solid var(--border); border-radius: 2px;
+  cursor: pointer; color: var(--dim); background: transparent;
+}
+.tiny-app-btn:hover { border-color: var(--focus); color: var(--focus); }
+.tiny-app-btn.primary { border-color: var(--focus); color: var(--focus); }
+
+/* Context pane (3rd pane - browser tabs) */
+.context-pane {
+  display: none; flex-direction: column; overflow: hidden;
+  min-width: 0; background: var(--surface);
+}
+.context-pane.visible { display: flex; }
+.ctx-tabs {
+  display: flex; background: var(--panel); border-bottom: 1px solid var(--border);
+  font-size: 7px; overflow-x: auto; flex-shrink: 0;
+}
+.ctx-tab {
+  padding: 4px 10px; cursor: pointer; color: var(--dim);
+  border-right: 1px solid var(--border); white-space: nowrap;
+  display: flex; align-items: center; gap: 4px; transition: all 100ms;
+}
+.ctx-tab:hover { color: var(--muted); }
+.ctx-tab.on { color: var(--text); background: var(--surface); }
+.ctx-body { flex: 1; padding: 8px; font-size: 8px; color: var(--dim); overflow-y: auto; line-height: 1.6; }
+.ctx-url { font-size: 7px; color: var(--vdim); padding: 4px 8px; border-bottom: 1px solid var(--border); }
+
+/* ═══ STAMP BAR ═══ */
+.stamp-bar {
+  grid-column: 2;
+  background: var(--panel); border-top: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 8px; gap: 4px;
+  font-size: 7px; overflow: hidden;
+}
+.stamp-text { flex: 1; color: var(--focus); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stamp-btn {
+  padding: 1px 6px; font-size: 6px; border: 1px solid var(--border);
+  border-radius: 2px; cursor: pointer; color: var(--dim); background: transparent;
+}
+.stamp-btn:hover { border-color: var(--focus); color: var(--focus); }
+
+/* ═══ BOTTOM ZONE ═══ */
+.bottom-zone {
+  grid-column: 1/-1;
+  background: var(--panel); border-top: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden; transition: all 250ms ease;
+}
+
+/* Bottom toolbar (artifact bar + mode) */
+.bot-toolbar {
+  display: flex; align-items: center; gap: 2px;
+  padding: 2px 4px; min-height: 42px; flex-shrink: 0;
+}
+
+/* Start button */
+.start-btn {
+  width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; border-radius: 4px; margin-right: 2px;
+  border: 1px solid color-mix(in srgb, var(--focus) 20%, var(--border));
+  background: color-mix(in srgb, var(--focus) 4%, var(--surface));
+  color: var(--focus); transition: all 200ms;
+}
+.start-btn:hover {
+  background: color-mix(in srgb, var(--focus) 10%, var(--surface));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--focus) 20%, transparent);
+}
+
+/* Toolbar dividers */
+.bot-div { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
+
+/* Toolbar app buttons */
+.tb-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 3px 6px; border-radius: 4px; cursor: pointer;
+  min-width: 40px; transition: all 120ms;
+  border: 1px solid transparent;
+}
+.tb-btn:hover { background: var(--surface); border-color: var(--border); }
+.tb-btn.active { background: color-mix(in srgb, var(--focus) 6%, var(--surface)); border-color: color-mix(in srgb, var(--focus) 15%, var(--border)); }
+.tb-btn .i { width: 18px; height: 18px; }
+.tb-btn .i svg { width: 14px; height: 14px; }
+.tb-label { font-size: 5px; letter-spacing: 0.5px; color: var(--dim); white-space: nowrap; }
+.tb-btn.active .tb-label { color: var(--focus); }
+
+/* Artifact bar (inside bottom, above keyboard) */
+.artifact-bar {
+  display: none; /* shown when kb open */
+  align-items: center; gap: 3px;
+  padding: 3px 6px; border-bottom: 1px solid var(--border);
+  min-height: 28px; overflow-x: auto; flex-shrink: 0;
+}
+.shell.kb-open .artifact-bar { display: flex; }
+.art-chip {
+  display: flex; align-items: center; gap: 3px;
+  padding: 3px 8px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 3px; font-size: 7px; color: var(--muted); cursor: pointer;
+  white-space: nowrap; transition: all 120ms; flex-shrink: 0;
+}
+.art-chip:hover { border-color: var(--focus); color: var(--text); }
+.art-chip.targeted { border-color: var(--focus); color: var(--focus); box-shadow: 0 0 6px color-mix(in srgb, var(--focus) 15%, transparent); }
+.art-inject {
+  font-size: 6px; padding: 1px 4px; border: 1px solid var(--border); border-radius: 2px;
+  cursor: pointer; color: var(--dim); background: transparent; margin-left: 2px;
+}
+.art-inject:hover { border-color: var(--focus); color: var(--focus); }
+
+/* Keyboard area */
+.kb-area {
+  display: none;
+  flex: 1; padding: 4px 6px; flex-direction: column; gap: 2px; justify-content: center;
+}
+.shell.kb-open .kb-area { display: flex; }
+.kr { display: flex; gap: 2px; justify-content: center; }
+.k {
+  height: 28px; min-width: 28px; padding: 0 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); transition: all 80ms;
+}
+.k:hover { background: var(--elevated); }
+.k.g { font-size: 8px; min-width: 38px; font-weight: 600; }
+.k.g.yes { color: var(--focus); border-color: color-mix(in srgb, var(--focus) 25%, var(--border)); }
+.k.g.half { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 25%, var(--border)); }
+.k.g.open { color: var(--dim); }
+.k.act { font-size: 7px; min-width: 48px; color: var(--muted); }
+.k.sp { flex: 1; max-width: 220px; }
+
+/* Mode buttons in bottom toolbar */
+.mode-btns { display: flex; gap: 2px; margin-left: auto; }
+.mode-btn {
+  padding: 4px 8px; font-size: 7px; letter-spacing: 0.5px;
+  border: 1px solid var(--border); border-radius: 3px;
+  cursor: pointer; color: var(--dim); background: transparent;
+}
+.mode-btn:hover { color: var(--muted); }
+.mode-btn.active { border-color: var(--focus); color: var(--focus); }
+
+/* Target buttons */
+.target-btns { display: flex; gap: 2px; }
+.t-btn {
+  padding: 4px 8px; font-size: 7px; font-weight: 600;
+  border: 1.5px solid; border-radius: 3px;
+  cursor: pointer; background: transparent;
+}
+.t-btn.f-t { border-color: var(--focus); color: var(--focus); }
+.t-btn.p-t { border-color: var(--process); color: var(--process); opacity: 0.35; }
+.t-btn.x-t { border-color: var(--code); color: var(--code); opacity: 0.35; }
+.t-btn.active { opacity: 1 !important; filter: drop-shadow(0 0 4px currentColor); }
+
+/* ═══ START MENU (overlay) ═══ */
+.start-menu {
+  position: fixed; bottom: 50px; left: 6px;
+  width: 280px; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  z-index: 100; display: none; overflow: hidden;
+}
+.start-menu.visible { display: block; }
+
+.sm-header {
+  padding: 10px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+.sm-identity {
+  display: flex; flex-direction: column; gap: 2px; flex: 1;
+}
+.sm-name { font-size: 11px; color: var(--text); }
+.sm-chain { font-size: 7px; color: var(--dim); font-family: var(--font); }
+.sm-nft-badge {
+  padding: 3px 8px; border-radius: 3px; font-size: 7px; letter-spacing: 1px;
+  border: 1px solid color-mix(in srgb, var(--dead) 30%, var(--border));
+  color: var(--dead); background: color-mix(in srgb, var(--dead) 5%, transparent);
+}
+.sm-nft-badge.active { border-color: var(--focus); color: var(--focus); background: color-mix(in srgb, var(--focus) 5%, transparent); }
+
+.sm-section {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.sm-section:last-child { border-bottom: none; }
+.sm-label { font-size: 6px; letter-spacing: 2px; color: var(--vdim); margin-bottom: 4px; }
+
+.sm-face {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 4px; cursor: pointer;
+  transition: all 120ms; margin: 2px 0;
+}
+.sm-face:hover { background: var(--surface); }
+.sm-face.on { background: color-mix(in srgb, var(--focus) 5%, var(--surface)); }
+.sm-face-dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid; transition: all 200ms; }
+.sm-face.on .sm-face-dot { background: currentColor; filter: drop-shadow(0 0 4px currentColor); }
+.sm-face-info { flex: 1; }
+.sm-face-name { font-size: 9px; }
+.sm-face-desc { font-size: 7px; color: var(--dim); }
+.sm-face-toggle {
+  font-size: 7px; padding: 2px 6px;
+  border: 1px solid var(--border); border-radius: 3px;
+  color: var(--dim); cursor: pointer; background: transparent;
+}
+.sm-face.on .sm-face-toggle { border-color: var(--focus); color: var(--focus); }
+
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- SVG Defs -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <symbol id="i-diamond" viewBox="0 0 24 24"><path d="M12 2L22 12L12 22L2 12Z"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 9l4 3-4 3"/><line x1="12" y1="15" x2="18" y2="15"/></symbol>
+  <symbol id="i-git" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><line x1="6" y1="8" x2="6" y2="16"/><path d="M6 6c0 6 12 6 12 0"/></symbol>
+  <symbol id="i-gpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><line x1="9" y1="2" x2="9" y2="5"/><line x1="15" y1="2" x2="15" y2="5"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/><line x1="2" y1="9" x2="5" y2="9"/><line x1="2" y1="15" x2="5" y2="15"/><line x1="19" y1="9" x2="22" y2="9"/><line x1="19" y1="15" x2="22" y2="15"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4" ry="10"/><line x1="2" y1="12" x2="22" y2="12"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="5"/><line x1="12" y1="11" x2="21" y2="2"/><line x1="18" y1="2" x2="21" y2="5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5.5-3.8 10.7-8 12-4.2-1.3-8-6.5-8-12V6l8-4z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M15 4.5L18.5 8 13 14.5H9.5V11L15 4.5z"/><line x1="9" y1="15" x2="4" y2="20"/></symbol>
+  <symbol id="i-fork" viewBox="0 0 24 24"><circle cx="12" cy="18" r="2"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 8v2a4 4 0 004 4h4a4 4 0 004-4V8"/><line x1="12" y1="14" x2="12" y2="16"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></symbol>
+  <symbol id="i-pkg" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></symbol>
+  <symbol id="i-morph" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10"/><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-1 19.95c1.5.1 2-1 2-1a2 2 0 012-2h1.5a2 2 0 002-2c0-3.5-3-3.5-3-6a4 4 0 118 0"/><circle cx="8" cy="10" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="16" cy="10" r="1.5"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="8" width="4" height="12" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></symbol>
+  <symbol id="i-grad" viewBox="0 0 24 24"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 0 2.5 3 6 3s6-3 6-3v-5"/><line x1="22" y1="10" x2="22" y2="16"/></symbol>
+  <symbol id="i-dollar" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 12c2-3 4-6 6-3s4 6 6 3 4-6 6-3"/><path d="M2 17c2-3 4-6 6-3s4 6 6 3 4-6 6-3" opacity="0.4"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+  <symbol id="i-feed" viewBox="0 0 24 24"><path d="M4 11a9 9 0 019 9"/><path d="M4 4a16 16 0 0116 16"/><circle cx="5" cy="19" r="1"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+  <symbol id="i-chain" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+  <symbol id="i-tabs" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="8" y1="4" x2="8" y2="8"/><line x1="14" y1="4" x2="14" y2="8"/></symbol>
+  <symbol id="i-inject" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/><circle cx="12" cy="12" r="10"/></symbol>
+</defs>
+</svg>
+
+<div class="shell" id="shell">
+  <!-- ═══ GENESIS BAR ═══ -->
+  <div class="genesis-bar">
+    <div class="genesis-key locked" id="genesis-key">
+      <span class="i glow"><svg><use href="#i-key"/></svg></span>
+      <span>GENESIS</span>
+      <span style="opacity:0.5">0x7a3f...c2d1</span>
+      <span class="i"><svg><use href="#i-lock"/></svg></span>
+    </div>
+    <div class="chain-badge">
+      <span class="i" style="color:var(--focus);width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-chain"/></svg></span>
+      ETH · BLK 19482031
+    </div>
+    <div class="const-chip"><b style="color:var(--focus)">const/</b> Blue Channel</div>
+    <div class="genesis-spacer"></div>
+    <div class="face-badge" id="face-badge" style="border-color:var(--focus);color:var(--focus)">
+      <span class="i"><svg><use href="#i-diamond"/></svg></span>
+      <span id="face-label">CORE</span>
+    </div>
+  </div>
+
+  <!-- ═══ LEFT SHELF ═══ -->
+  <div class="shelf-left">
+    <div class="shelf-rail" id="left-rail">
+      <div class="rail-btn active" onclick="setLeftView('clans')">
+        <span class="i"><svg><use href="#i-layers"/></svg></span>
+      </div>
+      <div class="rail-btn" onclick="setLeftView('files')">
+        <span class="i"><svg><use href="#i-file"/></svg></span>
+      </div>
+      <div class="rail-btn" onclick="setLeftView('search')">
+        <span class="i"><svg><use href="#i-search"/></svg></span>
+      </div>
+      <div class="rail-btn" onclick="setLeftView('git')">
+        <span class="i"><svg><use href="#i-git"/></svg></span>
+      </div>
+      <div style="flex:1"></div>
+      <div class="rail-btn" onclick="toggleShelf('left')">
+        <span class="i"><svg><use href="#i-menu"/></svg></span>
+      </div>
+    </div>
+    <div class="shelf-content" id="left-content">
+      <div class="sc-header">
+        <span class="sc-title" id="left-title">CLANS</span>
+      </div>
+      <div class="sc-body">
+        <div class="sc-divider">ACTIVE</div>
+        <div class="sc-item active">
+          <span class="sc-dot" style="background:var(--focus)"></span>
+          <span>Encoding Strategy</span>
+          <span class="sc-meta">d=4</span>
+        </div>
+        <div class="sc-item">
+          <span class="sc-dot" style="background:var(--code)"></span>
+          <span>Channel Capacity</span>
+          <span class="sc-meta">d=3</span>
+        </div>
+        <div class="sc-item">
+          <span class="sc-dot" style="background:var(--warn)"></span>
+          <span>Error Correction</span>
+          <span class="sc-meta">d=1</span>
+        </div>
+        <div class="sc-divider">FROZEN</div>
+        <div class="sc-item" style="opacity:0.35">
+          <span class="sc-dot" style="background:var(--frozen)"></span>
+          <span>Blue Channel</span>
+          <span class="sc-meta">❄</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PANE AREA ═══ -->
+  <div class="pane-area">
+    <!-- PANE A (Focus) -->
+    <div class="pane" id="paneA" style="flex:1">
+      <div class="pane-head" style="background:color-mix(in srgb, var(--focus) 4%, var(--panel))">
+        <span class="ph-dot" style="background:var(--focus)"></span>
+        <span class="ph-label" style="color:var(--focus)">A</span>
+        <span class="ph-ctx">Encoding Strategy</span>
+        <button class="ph-ctrl" onclick="splitPane('A')">⊞ split</button>
+        <button class="ph-ctrl" onclick="toggleContext()">⊟ ctx</button>
+      </div>
+      <div class="pane-body">
+        <div class="chat-area">
+          <div class="chat-scroll">
+            <div class="msg u">
+              <div class="msg-st" style="color:var(--focus)">[OLO|🌿encoding|📍4|#a3f2]</div>
+              How does frequency encoding survive JPEG?
+            </div>
+            <div class="msg c">
+              Mid-frequency DCT coefficients (4-12 per 8×8 block) are least affected by quantization. Here's a quick visualizer:
+              <div class="tiny-app">
+                <div class="tiny-app-label">RENDERED APP · DCT Coefficient Heatmap</div>
+                <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:1px;margin:4px 0">
+                  <script>
+                    // Generate tiny heatmap inline
+                    const colors = ['#1a1a2e','#1a1a2e','#1a3a2e','#2a4a3e','#3a6a4e','#4a8a5e','#3a6a4e','#2a4a3e',
+                                    '#1a1a2e','#1a3a2e','#2a5a3e','#3a7a4e','#5aaa6e','#3a7a4e','#2a5a3e','#1a3a2e'];
+                  </script>
+                </div>
+                <div style="height:32px;background:linear-gradient(90deg,var(--vdim) 0%,var(--vdim) 12%,var(--focus) 25%,var(--focus) 50%,var(--focus) 62%,var(--vdim) 75%,var(--vdim) 100%);border-radius:2px;opacity:0.6"></div>
+                <div style="display:flex;justify-content:space-between;font-size:5px;color:var(--dim);margin-top:2px"><span>DC</span><span>← sweet spot →</span><span>HF</span></div>
+                <div class="tiny-app-actions">
+                  <button class="tiny-app-btn primary" onclick="alert('→ Pin to toolbar')"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-pin"/></svg></span> Pin</button>
+                  <button class="tiny-app-btn" onclick="alert('→ Open in Proton')"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-morph"/></svg></span> Proton</button>
+                  <button class="tiny-app-btn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-share"/></svg></span> Feed</button>
+                  <button class="tiny-app-btn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-fork"/></svg></span> Fork</button>
+                </div>
+              </div>
+            </div>
+            <div class="msg u">
+              <div class="msg-st" style="color:var(--focus)">[OLO|🌿encoding|📍4|⚡OPEN|#a3f2]</div>
+              Perfect — pin that to my toolbar. Now write the encoder.
+            </div>
+            <div class="msg c">
+              Pinned. Building freq_encoder.rs now — you'll see it staged in the artifact bar below.
+              <div class="tiny-app">
+                <div class="tiny-app-label">RENDERED APP · Encoder Test Harness</div>
+                <div style="padding:4px;background:var(--surface);border-radius:2px;font-size:6px;color:var(--focus);line-height:1.6">
+                  ✓ DCT transform ... pass<br>
+                  ✓ Coefficient select ... pass<br>
+                  ◐ Bit embedding ... running<br>
+                  ○ JPEG roundtrip ... pending
+                </div>
+                <div class="tiny-app-actions">
+                  <button class="tiny-app-btn primary"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-pin"/></svg></span> Pin</button>
+                  <button class="tiny-app-btn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-morph"/></svg></span> Proton</button>
+                  <button class="tiny-app-btn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-inject"/></svg></span> Inject →A</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane-divider" id="divAB"></div>
+
+    <!-- PANE B (Process) -->
+    <div class="pane" id="paneB" style="flex:0.8">
+      <div class="pane-head" style="background:color-mix(in srgb, var(--process) 4%, var(--panel))">
+        <span class="ph-dot" style="background:var(--process)"></span>
+        <span class="ph-label" style="color:var(--process)">B</span>
+        <span class="ph-ctx">Channel Capacity</span>
+        <button class="ph-ctrl" onclick="splitPane('B')">⊞ split</button>
+      </div>
+      <div class="pane-body">
+        <div class="chat-area">
+          <div class="chat-scroll">
+            <div class="msg u">
+              <div class="msg-st" style="color:var(--process)">[OLO|🌿capacity|📍3|#7b1e]</div>
+              Realistic bit capacity per 1024×1024?
+            </div>
+            <div class="msg c">
+              16,384 luminance blocks × 9 usable coefficients = ~147K bits theoretical. After 40% ECC: ~240 reliable bits.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTEXT PANE (3rd - browser tabs) -->
+    <div class="pane-divider hidden" id="divCtx"></div>
+    <div class="context-pane" id="ctxPane" style="flex:0.6">
+      <div class="ctx-tabs">
+        <div class="ctx-tab on">
+          <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-book"/></svg></span>
+          DCT Ref
+        </div>
+        <div class="ctx-tab">
+          <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-code"/></svg></span>
+          encoder.rs
+        </div>
+        <div class="ctx-tab">
+          <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-globe"/></svg></span>
+          JPEG spec
+        </div>
+      </div>
+      <div class="ctx-url">https://docs.gently.os/dct-coefficient-encoding</div>
+      <div class="ctx-body">
+        <strong style="color:var(--text)">DCT Coefficient Encoding Reference</strong><br><br>
+        The Discrete Cosine Transform decomposes each 8×8 pixel block into 64 frequency coefficients. Position (0,0) is the DC coefficient (average brightness). Positions (1,1) through (3,3) represent mid-frequency components ideal for steganographic embedding...<br><br>
+        <strong style="color:var(--text)">Quantization Survival Rates</strong><br>
+        Quality 75: coefficients 4-12 survive at 94%<br>
+        Quality 50: coefficients 4-8 survive at 87%<br>
+        Quality 25: coefficients 4-6 survive at 71%<br><br>
+        <em style="color:var(--vdim)">This context feeds back to pane A and B conversations.</em>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ RIGHT SHELF ═══ -->
+  <div class="shelf-right">
+    <div class="shelf-rail" id="right-rail">
+      <div class="rail-btn active" onclick="setRightView('artifacts')">
+        <span class="i"><svg><use href="#i-pkg"/></svg></span>
+        <span class="badge"></span>
+      </div>
+      <div class="rail-btn" onclick="setRightView('feed')">
+        <span class="i"><svg><use href="#i-feed"/></svg></span>
+      </div>
+      <div class="rail-btn" onclick="setRightView('tools')">
+        <span class="i"><svg><use href="#i-code"/></svg></span>
+      </div>
+      <div style="flex:1"></div>
+      <div class="rail-btn" onclick="toggleShelf('right')">
+        <span class="i"><svg><use href="#i-menu"/></svg></span>
+      </div>
+    </div>
+    <div class="shelf-content" id="right-content">
+      <div class="sc-header">
+        <span class="sc-title" id="right-title">ARTIFACTS</span>
+      </div>
+      <div class="sc-body">
+        <div class="sc-divider">STAGED</div>
+        <div class="sc-item" style="border-left:2px solid var(--focus)">
+          <span class="i" style="color:var(--focus);width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-file"/></svg></span>
+          <span>freq_encoder.rs</span>
+          <span class="sc-meta" style="color:var(--focus)">→A</span>
+        </div>
+        <div class="sc-item" style="border-left:2px solid var(--proton)">
+          <span class="i" style="color:var(--proton);width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-palette"/></svg></span>
+          <span>DCT Heatmap</span>
+          <span class="sc-meta" style="color:var(--proton)">📌</span>
+        </div>
+        <div class="sc-divider">PINNED APPS</div>
+        <div class="sc-item">
+          <span class="i" style="color:var(--focus);width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-chart"/></svg></span>
+          <span>Test Harness</span>
+          <span class="sc-meta">running</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STAMP BAR ═══ -->
+  <div class="stamp-bar">
+    <span class="stamp-text">[OLO|🌿encoding-strategy|📍4|⚡OPEN|🔒A●B●C●D●E◐F●G○|📌freq-domain|#a3f2|⏱0201]</span>
+    <button class="stamp-btn">📋</button>
+  </div>
+
+  <!-- ═══ BOTTOM ZONE ═══ -->
+  <div class="bottom-zone" id="bottom-zone">
+    <!-- Artifact bar (visible when KB open) -->
+    <div class="artifact-bar">
+      <span style="font-size:6px;letter-spacing:1.5px;color:var(--vdim);margin-right:4px">ARTIFACTS</span>
+      <div class="art-chip targeted">
+        <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-file"/></svg></span>
+        freq_encoder.rs
+        <button class="art-inject">→A</button>
+      </div>
+      <div class="art-chip">
+        <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-palette"/></svg></span>
+        DCT Heatmap
+        <button class="art-inject">→📌</button>
+      </div>
+      <div class="art-chip">
+        <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-chart"/></svg></span>
+        Test Harness
+        <button class="art-inject">→P</button>
+      </div>
+      <div style="flex:1"></div>
+      <div class="target-btns">
+        <button class="t-btn f-t active">A</button>
+        <button class="t-btn p-t">B</button>
+        <button class="t-btn x-t">CTX</button>
+      </div>
+    </div>
+
+    <!-- Bottom toolbar -->
+    <div class="bot-toolbar">
+      <!-- Start button -->
+      <div class="start-btn" id="start-btn" onclick="toggleStartMenu()">
+        <span class="i lg glow" style="color:var(--focus)"><svg><use href="#i-diamond"/></svg></span>
+      </div>
+
+      <!-- Core apps (frozen) -->
+      <div class="tb-btn active">
+        <span class="i" style="color:var(--focus)"><svg><use href="#i-diamond"/></svg></span>
+        <span class="tb-label" style="color:var(--focus)">Shell</span>
+      </div>
+      <div class="tb-btn">
+        <span class="i" style="color:var(--muted)"><svg><use href="#i-term"/></svg></span>
+        <span class="tb-label">Term</span>
+      </div>
+      <div class="tb-btn">
+        <span class="i" style="color:var(--muted)"><svg><use href="#i-git"/></svg></span>
+        <span class="tb-label">Git</span>
+      </div>
+      <div class="tb-btn">
+        <span class="i" style="color:var(--muted)"><svg><use href="#i-gpu"/></svg></span>
+        <span class="tb-label">GPU</span>
+      </div>
+      <div class="tb-btn">
+        <span class="i" style="color:var(--muted)"><svg><use href="#i-shield"/></svg></span>
+        <span class="tb-label">Vault</span>
+      </div>
+
+      <div class="bot-div"></div>
+
+      <!-- Pinned dev apps -->
+      <div class="tb-btn">
+        <span class="i" style="color:var(--focus)"><svg><use href="#i-palette"/></svg></span>
+        <span class="tb-label" style="color:var(--focus)">Heatmap</span>
+      </div>
+      <div class="tb-btn">
+        <span class="i" style="color:var(--focus)"><svg><use href="#i-chart"/></svg></span>
+        <span class="tb-label" style="color:var(--focus)">Test</span>
+      </div>
+
+      <div class="bot-div"></div>
+
+      <!-- Mode buttons -->
+      <div class="mode-btns">
+        <button class="mode-btn active" onclick="toggleKB()">⌨ KB</button>
+        <button class="mode-btn" onclick="toggleKB()">📦 ART</button>
+        <button class="mode-btn" onclick="toggleKB()">⚙ TERM</button>
+      </div>
+    </div>
+
+    <!-- Keyboard -->
+    <div class="kb-area">
+      <div class="kr">
+        <div class="k g yes">A●</div><div class="k g yes">B●</div><div class="k g yes">C●</div>
+        <div class="k g yes">D●</div><div class="k g half">E◐</div><div class="k g yes">F●</div><div class="k g open">G○</div>
+        <div style="width:8px"></div>
+        <div class="k act" style="border-color:var(--focus);color:var(--focus)">⚡OPEN</div>
+        <div class="k act">⚡GATE</div>
+        <div class="k act">⚡DONE</div>
+      </div>
+      <div class="kr">
+        <div class="k">q</div><div class="k">w</div><div class="k">e</div><div class="k">r</div><div class="k">t</div><div class="k">y</div><div class="k">u</div><div class="k">i</div><div class="k">o</div><div class="k">p</div>
+      </div>
+      <div class="kr">
+        <div class="k">a</div><div class="k">s</div><div class="k">d</div><div class="k">f</div><div class="k">g</div><div class="k">h</div><div class="k">j</div><div class="k">k</div><div class="k">l</div>
+      </div>
+      <div class="kr">
+        <div class="k">z</div><div class="k">x</div><div class="k">c</div><div class="k">v</div><div class="k">b</div><div class="k">n</div><div class="k">m</div>
+      </div>
+      <div class="kr">
+        <div class="k act">◆ SAVE</div><div class="k act">🌿 FORK</div>
+        <div class="k act" style="border-color:var(--warn);color:var(--warn)">⭐ COLLAPSE</div>
+        <div class="k act" style="border-color:var(--focus);color:var(--focus)">A</div>
+        <div class="k sp"></div>
+        <div class="k act" style="border-color:var(--process);color:var(--process);opacity:0.4">B</div>
+        <div class="k act" style="border-color:var(--code);color:var(--code)">⚙</div>
+        <div class="k act">📌</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ START MENU ═══ -->
+<div class="start-menu" id="start-menu">
+  <div class="sm-header">
+    <span class="i xl glow" style="color:var(--focus)"><svg><use href="#i-diamond"/></svg></span>
+    <div class="sm-identity">
+      <div class="sm-name">GentlyOS</div>
+      <div class="sm-chain">
+        <span class="i" style="width:8px;height:8px;color:var(--focus)"><svg style="width:6px;height:6px"><use href="#i-chain"/></svg></span>
+        0x7a3f...c2d1 · ETH Mainnet · Genesis #1
+      </div>
+    </div>
+    <div class="sm-nft-badge active" id="nft-badge">
+      <span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-lock"/></svg></span>
+      NFT LOCKED
+    </div>
+  </div>
+
+  <div class="sm-section">
+    <div class="sm-label">FACES — activate per session</div>
+    <div class="sm-face on" onclick="toggleFace(this,'core','CORE','--focus')" data-face="core">
+      <span class="sm-face-dot" style="color:var(--focus);border-color:var(--focus)"></span>
+      <div class="sm-face-info">
+        <div class="sm-face-name" style="color:var(--focus)">Gently Core</div>
+        <div class="sm-face-desc">Shell · Clans · Gates · Stamps · Terminal</div>
+      </div>
+      <span class="sm-face-toggle">ON</span>
+    </div>
+    <div class="sm-face" onclick="toggleFace(this,'doc','DOC','--doc')" data-face="doc">
+      <span class="sm-face-dot" style="color:var(--doc);border-color:var(--doc)"></span>
+      <div class="sm-face-info">
+        <div class="sm-face-name" style="color:var(--doc)">Gently Doc</div>
+        <div class="sm-face-desc">Documentation · Knowledge base · Versioned writing</div>
+      </div>
+      <span class="sm-face-toggle">OFF</span>
+    </div>
+    <div class="sm-face" onclick="toggleFace(this,'student','STUDENT','--student')" data-face="student">
+      <span class="sm-face-dot" style="color:var(--student);border-color:var(--student)"></span>
+      <div class="sm-face-info">
+        <div class="sm-face-name" style="color:var(--student)">Gently Student</div>
+        <div class="sm-face-desc">Learning paths · Curriculum · Progress tracking</div>
+      </div>
+      <span class="sm-face-toggle">OFF</span>
+    </div>
+    <div class="sm-face" onclick="toggleFace(this,'finance','FINANCIAL','--finance')" data-face="finance">
+      <span class="sm-face-dot" style="color:var(--finance);border-color:var(--finance)"></span>
+      <div class="sm-face-info">
+        <div class="sm-face-name" style="color:var(--finance)">Gently Financial</div>
+        <div class="sm-face-desc">Portfolio · Trading · Accounting · DeFi integration</div>
+      </div>
+      <span class="sm-face-toggle">OFF</span>
+    </div>
+    <div class="sm-face" onclick="toggleFace(this,'synth','SYNESTHESIA','--synth')" data-face="synth">
+      <span class="sm-face-dot" style="color:var(--synth);border-color:var(--synth)"></span>
+      <div class="sm-face-info">
+        <div class="sm-face-name" style="color:var(--synth)">Gently Synesthesia</div>
+        <div class="sm-face-desc">Cross-modal · Audio-visual · Sensory mapping</div>
+      </div>
+      <span class="sm-face-toggle">OFF</span>
+    </div>
+  </div>
+
+  <div class="sm-section">
+    <div class="sm-label">VERSIONING</div>
+    <div class="sc-item" style="padding:4px 6px">
+      <span class="i" style="width:10px;height:10px;color:var(--focus)"><svg style="width:8px;height:8px"><use href="#i-pkg"/></svg></span>
+      <span style="font-size:8px">v1.0.0-alpha</span>
+      <span class="sc-meta">NixOS 24.05 · Electron 32</span>
+    </div>
+    <div class="sc-item" style="padding:4px 6px">
+      <span class="i" style="width:10px;height:10px;color:var(--dim)"><svg style="width:8px;height:8px"><use href="#i-chain"/></svg></span>
+      <span style="font-size:8px">Genesis: 0x7a3f...c2d1</span>
+      <span class="sc-meta">ETH · revocable</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// State
+let leftOpen = false, rightOpen = false, kbOpen = false;
+let contextOpen = false, startOpen = false;
+const activeFaces = new Set(['core']);
+
+function toggleShelf(side) {
+  const shell = document.getElementById('shell');
+  if (side === 'left') {
+    leftOpen = !leftOpen;
+  } else {
+    rightOpen = !rightOpen;
+  }
+  shell.classList.toggle('left-open', leftOpen);
+  shell.classList.toggle('right-open', rightOpen);
+  shell.classList.toggle('both-open', leftOpen && rightOpen);
+}
+
+function setLeftView(view) {
+  const title = document.getElementById('left-title');
+  const titles = { clans: 'CLANS', files: 'FILES', search: 'SEARCH', git: 'GIT' };
+  title.textContent = titles[view] || view.toUpperCase();
+  document.querySelectorAll('#left-rail .rail-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  if (!leftOpen) toggleShelf('left');
+}
+
+function setRightView(view) {
+  const title = document.getElementById('right-title');
+  const titles = { artifacts: 'ARTIFACTS', feed: 'FEED', tools: 'DEV TOOLS' };
+  title.textContent = titles[view] || view.toUpperCase();
+  document.querySelectorAll('#right-rail .rail-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  if (!rightOpen) toggleShelf('right');
+}
+
+function toggleKB() {
+  kbOpen = !kbOpen;
+  document.getElementById('shell').classList.toggle('kb-open', kbOpen);
+}
+
+function toggleContext() {
+  contextOpen = !contextOpen;
+  document.getElementById('ctxPane').classList.toggle('visible', contextOpen);
+  document.getElementById('divCtx').classList.toggle('hidden', !contextOpen);
+}
+
+function splitPane(which) {
+  // Toggle pane B visible/hidden as extension
+  const paneB = document.getElementById('paneB');
+  const divAB = document.getElementById('divAB');
+  const isHidden = paneB.classList.contains('hidden');
+  paneB.classList.toggle('hidden', !isHidden);
+  divAB.classList.toggle('hidden', !isHidden);
+}
+
+function toggleStartMenu() {
+  startOpen = !startOpen;
+  document.getElementById('start-menu').classList.toggle('visible', startOpen);
+}
+
+function toggleFace(el, face, label, cssVar) {
+  el.classList.toggle('on');
+  const toggle = el.querySelector('.sm-face-toggle');
+  const isOn = el.classList.contains('on');
+  toggle.textContent = isOn ? 'ON' : 'OFF';
+
+  if (isOn) {
+    activeFaces.add(face);
+  } else {
+    activeFaces.delete(face);
+  }
+
+  // Update face badge to most recently activated
+  if (isOn) {
+    const badge = document.getElementById('face-badge');
+    const color = getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
+    badge.style.borderColor = color;
+    badge.style.color = color;
+    document.getElementById('face-label').textContent = label;
+  }
+}
+
+// Close start menu on outside click
+document.addEventListener('click', (e) => {
+  if (startOpen && !e.target.closest('.start-menu') && !e.target.closest('.start-btn')) {
+    startOpen = false;
+    document.getElementById('start-menu').classList.remove('visible');
+  }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === '`') { e.preventDefault(); toggleKB(); }
+  if (e.ctrlKey && e.key === 'b') { e.preventDefault(); toggleShelf('left'); }
+  if (e.ctrlKey && e.key === 'j') { e.preventDefault(); toggleShelf('right'); }
+  if (e.ctrlKey && e.key === '3') { e.preventDefault(); toggleContext(); }
+});
+</script>
+</body>
+</html>

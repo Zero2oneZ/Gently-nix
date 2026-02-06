@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gently App-in-App: Possibility Space</title>
+<style>
+:root {
+  --bg: #08080c;
+  --surface: #0e0e16;
+  --card: #12121c;
+  --border: #1a1a2e;
+  --text: #e0e0e8;
+  --muted: #9999aa;
+  --dim: #666680;
+  --accent: #00e5a0;
+  --process: #4d9fff;
+  --warn: #ffd93d;
+  --code: #c77dff;
+  --red: #ff4444;
+  --font: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.7;
+  padding: 0;
+}
+
+.hero {
+  padding: 60px 40px 40px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.hero h1 {
+  font-size: 24px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  font-weight: 300;
+  margin-bottom: 12px;
+}
+.hero .sub {
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 1px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.core-pattern {
+  padding: 30px 40px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: center;
+}
+.core-diagram {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.8;
+  white-space: pre;
+  text-align: left;
+}
+
+.section {
+  padding: 40px;
+  border-bottom: 1px solid var(--border);
+}
+.section-num {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+.section-title {
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 6px;
+  font-weight: 400;
+}
+.section-desc {
+  font-size: 10px;
+  color: var(--muted);
+  max-width: 700px;
+  margin-bottom: 24px;
+}
+
+.examples {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+  transition: border-color 200ms;
+}
+.card:hover { border-color: var(--dim); }
+
+.card-label {
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  margin-bottom: 8px;
+}
+.card-title {
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.card-diagram {
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--dim);
+  white-space: pre;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+}
+
+.card-flow {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.flow-step {
+  padding: 3px 8px;
+  font-size: 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+.flow-outer { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.flow-inner { color: var(--process); border-color: color-mix(in srgb, var(--process) 30%, var(--border)); }
+.flow-lock { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, var(--border)); }
+.flow-emit { color: var(--code); border-color: color-mix(in srgb, var(--code) 30%, var(--border)); }
+.flow-arrow { color: var(--dim); display: flex; align-items: center; font-size: 8px; }
+
+.card-body {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.card-body strong { color: var(--text); font-weight: 500; }
+
+.card-what {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 9px;
+  color: var(--dim);
+}
+.card-what span { color: var(--accent); }
+
+.insight {
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--border));
+  border-radius: 6px;
+  padding: 20px;
+  margin-top: 24px;
+}
+.insight-title {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.insight-body {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.insight-body strong { color: var(--text); }
+
+.meta-section {
+  padding: 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.layer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 500px;
+  margin: 20px auto;
+}
+.layer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-size: 9px;
+}
+.layer-num { width: 16px; color: var(--dim); text-align: center; }
+.layer-name { flex: 1; }
+.layer-what { color: var(--dim); font-size: 8px; }
+
+.l1 { background: color-mix(in srgb, var(--red) 8%, var(--card)); color: var(--red); }
+.l2 { background: color-mix(in srgb, var(--warn) 8%, var(--card)); color: var(--warn); }
+.l3 { background: color-mix(in srgb, var(--process) 8%, var(--card)); color: var(--process); }
+.l4 { background: color-mix(in srgb, var(--code) 8%, var(--card)); color: var(--code); }
+.l5 { background: color-mix(in srgb, var(--accent) 8%, var(--card)); color: var(--accent); }
+
+.final {
+  padding: 60px 40px;
+  text-align: center;
+}
+.final-line {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0;
+}
+.final-big {
+  font-size: 18px;
+  color: var(--accent);
+  margin: 16px 0;
+  letter-spacing: 2px;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <h1>APP-IN-APP POSSIBILITY SPACE</h1>
+  <div class="sub">
+    The outer provides workspace (shelves, clans, stamps, git, terminal, Claude).
+    The inner provides content (anything). The hardlock ensures the editor
+    can never break the running thing. Here's what that enables.
+  </div>
+</div>
+
+<!-- ═══ CORE PATTERN ═══ -->
+<div class="core-pattern">
+<div class="core-diagram">
+<span style="color:var(--accent)">OUTER (always Gently)</span>          <span style="color:var(--process)">INNER (anything)</span>           <span style="color:var(--warn)">HARDLOCK (5 layers)</span>
+
+┌─────────────────────┐       ┌─────────────────────┐       ┌─────────────────┐
+│ • Clans & gates     │       │ • Any HTML/JS app   │       │ 1. Sandbox      │
+│ • Git worktrees     │──────▶│ • Any URL            │◀──────│ 2. Validate     │
+│ • Stamps & hashes   │       │ • Any Electron view  │       │ 3. Snapshot     │
+│ • Terminal          │       │ • Any local server   │       │ 4. Watchdog     │
+│ • Claude interface  │       │ • Even itself         │       │ 5. Struct lock  │
+│ • Code editor       │       │                      │       │                 │
+└─────────────────────┘       └──────────────────────┘       └─────────────────┘
+</div>
+</div>
+
+<!-- ═══ 1. SELF-EDITING ═══ -->
+<div class="section">
+  <div class="section-num">01</div>
+  <div class="section-title">Self-Editing: Gently Building Gently</div>
+  <div class="section-desc">
+    The system that builds itself. The outer workbench embeds its own shell as the inner app.
+    You edit the running OS while using the running OS.
+  </div>
+
+  <div class="examples">
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">Live CSS Theming</div>
+      <div class="card-diagram">OUTER: workbench + editor on tokens.css
+INNER: Gently shell running live
+
+Edit:  --accent: #00e5a0  →  --accent: #ff6b9d
+       ↓ 400ms debounce
+       ↓ validate (CSS brackets balanced? ✓)
+       ↓ inject into iframe
+       ↓ entire shell turns pink instantly</div>
+      <div class="card-body">
+        Change every color, spacing, and font in the live shell.
+        See it instantly. If your CSS is malformed — preview stays green.
+        You literally cannot make it ugly by accident.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Design iteration at the speed of thought with zero risk of breaking the tool you're designing with.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">Layout Surgery</div>
+      <div class="card-diagram">OUTER: workbench + editor on shell.html
+INNER: Gently shell with current grid
+
+Edit:  grid-template-columns: 220px 1fr 1fr 220px
+  to:  grid-template-columns: 180px 1fr 1fr 1fr 180px
+
+Validator checks:
+  ✓ .shell still exists
+  ✓ grid-template is valid CSS
+  ✓ no display:none on body
+  → inject → now there's a third pane</div>
+      <div class="card-body">
+        Restructure the entire shell layout while the shell is running.
+        The hardlock checks that required elements still exist.
+        If your edit deletes <strong>.shell</strong> — rejected. If it adds a third pane — allowed, you see it immediately.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Architectural experiments that can't destroy the architecture.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">Bootstrap Paradox: Editing the Editor</div>
+      <div class="card-diagram">OUTER: Gently workbench (the editor)
+INNER: Gently workbench (the same editor)
+
+You see the editor inside the editor.
+Edit the INNER editor's code in the OUTER editor.
+The inner updates. The outer is untouched.
+The hardlock keeps the outer stable while the
+inner version experiments with new features.</div>
+      <div class="card-body">
+        The workbench can embed itself. You edit the workbench code in the outer copy.
+        The inner copy updates live. When you're satisfied, promote the inner version
+        to become the new outer. <strong>The tool evolves itself.</strong>
+      </div>
+      <div class="card-what"><span>Emergent:</span> Safe self-modification. The running system can never destroy itself because edits only affect the sandboxed copy.</div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-title">WHY THIS MATTERS</div>
+    <div class="insight-body">
+      Traditional IDEs edit files that run somewhere else. Gently edits files that run <strong>right there</strong>.
+      The feedback loop collapses from "edit → save → build → deploy → check" to "edit → see".
+      The hardlock means this instant loop is <strong>safe</strong> — bad edits are caught before they render.
+      You get the speed of a REPL with the safety of a compiler.
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 2. DEV TOOLS ═══ -->
+<div class="section">
+  <div class="section-num">02</div>
+  <div class="section-title">Dev Tools: Building Other Software</div>
+  <div class="section-desc">
+    The inner isn't Gently — it's whatever you're building. React app, game, API dashboard.
+    Gently provides the workspace. The inner provides the product.
+  </div>
+
+  <div class="examples">
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">React Component Workshop</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: iframe → localhost:3000 (Vite dev server)
+
+Clan A: "Button variants" → Claude designing button states
+Clan B: "Form validation" → Claude writing Zod schemas
+Terminal: npm run dev (Vite hot reload)
+Editor: editing src/components/Button.tsx
+
+Claude sees the live preview.
+Claude sees the terminal errors.
+Claude writes code. You see it render. Both sides.</div>
+      <div class="card-body">
+        Point the inner iframe at <strong>localhost:3000</strong> where Vite is running.
+        The terminal runs in the clan's worktree. Claude edits files through Code CLI.
+        You see the rendered component update live in the preview pane.
+        Each clan explores a different component or approach in parallel.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Claude sees what it's building while it's building it. No more "here's the code, try it yourself."</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">Rust Crate Development</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: HTML test dashboard (cargo test output)
+
+Clan A: "Core API"       → designing public interface
+Clan B: "Performance"    → benchmarking hot path
+Clan C: "Error handling" → fuzz testing edge cases
+
+Terminal: cargo test --lib (auto-run on save)
+Editor: src/lib.rs
+
+Test results render in preview as live dashboard.
+Red/green per test. Flamegraph for perf clan.</div>
+      <div class="card-body">
+        The inner app doesn't have to be the thing you're building.
+        It can be a <strong>dashboard of the thing</strong> — test results, benchmarks, coverage maps.
+        Terminal runs cargo. Editor edits Rust. Preview shows a custom HTML dashboard
+        that parses cargo's JSON output into something visual.
+      </div>
+      <div class="card-what"><span>Emergent:</span> The preview pane becomes a live instrument panel for any development workflow, not just web development.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">API Design Studio</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: interactive API playground (like Swagger UI)
+
+Clan A: "Auth flow"     → designing OAuth2 endpoints
+Clan B: "Data model"    → entity relationships
+Clan C: "Error cases"   → 4xx/5xx response shapes
+
+Editor: openapi.yaml
+Preview: Swagger UI rendering the spec live
+Terminal: mock server running from spec
+
+Edit the spec → see the docs → test the endpoints
+All in one view. Claude helps design the API
+while seeing the rendered documentation.</div>
+      <div class="card-body">
+        Edit an OpenAPI spec in the editor. The preview renders it as interactive API docs.
+        The terminal runs a mock server generated from the spec. You can test endpoints
+        in the preview while Claude refines the contract in the editor.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Design-by-preview for any artifact that has a visual representation — not just UIs.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">Multi-Clan Refactor</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: diff visualization across clans
+
+Clan A: "Type safety"  → adding TypeScript types
+Clan B: "API migration"→ swapping REST for gRPC
+Clan C: "Tests"        → writing integration tests
+
+Each clan = separate git worktree.
+Preview shows a 3-column diff:
+  before | clan A | clan B
+
+Collapse A+B → new window opens with merged diff.
+Constants carry: "types added", "gRPC integrated".</div>
+      <div class="card-body">
+        Three Claude conversations explore three aspects of a refactor simultaneously.
+        The preview shows a live diff visualization — how each clan's changes interact.
+        When you collapse two clans, the stamp captures what each one concluded.
+        The new window's Claude inherits those conclusions as constants.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Parallel exploration with visual merge preview. See conflicts before they happen.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 3. CREATIVE TOOLS ═══ -->
+<div class="section">
+  <div class="section-num">03</div>
+  <div class="section-title">Creative Tools: Art, Music, Writing</div>
+  <div class="section-desc">
+    The inner app can be a canvas, a sequencer, a document editor.
+    Claude + Gently become a creative studio.
+  </div>
+
+  <div class="examples">
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">Shader Playground</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: WebGL canvas running fragment shader
+
+Clan A: "Color palette"  → Claude tuning hue curves
+Clan B: "Noise function" → Claude writing Perlin noise
+Gate F: "blend mode"     → open/half/yes cycles through
+                           normal → additive → multiply
+
+Editor: shader.frag
+Preview: real-time WebGL render at 60fps
+Terminal: shader compiler output (errors with line numbers)
+
+Edit a uniform value → canvas responds immediately.
+Claude sees the visual output it's creating.</div>
+      <div class="card-body">
+        Write GLSL in the editor. See it render in real-time on the canvas.
+        Claude helps write shader math while watching the visual result.
+        Gates map to blend modes, iteration counts, color channels —
+        <strong>toggle a gate, change the shader's behavior</strong>.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Gates become creative parameters. The stamp captures the exact visual state: shader source + gate config + git hash = reproducible art.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">Generative Music Workstation</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: Web Audio API sequencer (Tone.js)
+
+Clan A: "Melody"   → Claude composing note sequences
+Clan B: "Rhythm"   → Claude designing drum patterns
+Clan C: "Harmony"  → Claude building chord progressions
+
+Gates: A=melody B=rhythm C=harmony D=reverb E=delay
+  ● = active, ○ = muted, ◐ = half volume
+
+Collapse melody+rhythm → new window inherits both
+  as constants. Claude hears the combined result
+  and works on arrangement.</div>
+      <div class="card-body">
+        Each clan explores one musical dimension. Gates control which layers
+        are active in the live preview. The sequencer runs in the inner iframe.
+        Collapse two clans → the stamp captures exactly which notes at which tempo
+        with which effects were playing.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Musical version control. Every gate configuration is a mix state. Every stamp is a moment in the composition's history. Git bisect your music.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">Interactive Fiction Engine</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: game running in iframe (Ink/Twine renderer)
+
+Clan A: "World building" → Claude designing the setting
+Clan B: "Puzzle design"  → Claude writing game logic
+Clan C: "Dialogue"       → Claude writing NPC conversation
+
+Editor: story.ink (Ink markup)
+Preview: playable game updating as you type
+
+Gate D = "dark path unlocked"
+Gate E = "NPC trust level"
+Gates literally ARE game state flags.</div>
+      <div class="card-body">
+        Write interactive fiction in the editor. Play it live in the preview.
+        The gates map directly to game state booleans — is this path open?
+        Does the NPC trust you? Toggle a gate → the game state changes → play
+        from that branch. <strong>Gates become save states.</strong>
+      </div>
+      <div class="card-what"><span>Emergent:</span> The Gently gate system IS a game state system. The stamp IS a save file. The clan system IS a branching narrative tool.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">SVG Illustration Studio</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: live SVG renderer with pan/zoom
+
+Clan A: "Character design" → Claude writing SVG paths
+Clan B: "Background"       → Claude creating scene
+Clan C: "Animation"        → Claude adding CSS keyframes
+
+Editor: illustration.svg
+Preview: rendered SVG at full fidelity
+Terminal: svgo optimization stats
+
+Claude writes SVG code. You see the drawing appear.
+Point at a path. Claude sees coordinates.
+"Make the arm angle 15° more" → instant visual.</div>
+      <div class="card-body">
+        SVG is code. Code is editable. The preview renders SVG natively.
+        Claude writes vector paths and sees the result. You direct Claude
+        like an art director: "the curve on that shoulder needs to be softer."
+        Claude adjusts the bezier control points.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Claude becomes a visual artist with instant feedback. The stamp captures every stroke.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 4. LEARNING & TEACHING ═══ -->
+<div class="section">
+  <div class="section-num">04</div>
+  <div class="section-title">Learning: Interactive Education</div>
+  <div class="section-desc">
+    The inner is a learning environment. The outer provides structure, progress tracking, and AI tutoring.
+  </div>
+
+  <div class="examples">
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">Algorithm Visualizer</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: D3.js visualization canvas
+
+Clan A: "Sorting"  → Claude explaining quicksort
+Clan B: "Trees"    → Claude explaining red-black trees
+Clan C: "Graphs"   → Claude explaining Dijkstra's
+
+Editor: algorithm implementation
+Preview: animated visualization of the algorithm
+Terminal: step-by-step execution log
+
+Gate A = "show comparisons"
+Gate B = "show swaps"
+Gate C = "show recursion depth"
+
+Edit the code → see the visualization change.
+Claude explains what's happening at each step.</div>
+      <div class="card-body">
+        Write a sorting algorithm. See it sort visually. Each comparison highlighted.
+        Claude explains why quicksort chose that pivot. You modify the partition logic.
+        The visualization updates. Gates toggle which aspects are visible —
+        comparisons, swaps, memory allocation, recursion tree.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Learning by seeing your code run visually, with an AI tutor watching the same visualization and explaining what's happening.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">NixOS Configuration Trainer</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: NixOS module dependency graph + build status
+
+Clan A: "Networking"  → Claude teaching firewall rules
+Clan B: "Services"    → Claude teaching systemd units
+Clan C: "Users"       → Claude teaching home-manager
+
+Editor: configuration.nix
+Preview: module graph showing what depends on what
+Terminal: nix-build --dry-run (shows what would change)
+
+Edit a module → graph updates → see ripple effects
+before you deploy. Claude explains each dependency.</div>
+      <div class="card-body">
+        Perfect for the Linux speed run. Edit NixOS config in the editor.
+        The preview shows a dependency graph — which modules depend on which.
+        The terminal dry-runs the build. Claude explains why adding <strong>nginx</strong>
+        pulls in <strong>openssl</strong> pulls in <strong>perl</strong>.
+        Learn NixOS by seeing the consequences of every edit before it touches the system.
+      </div>
+      <div class="card-what"><span>Emergent:</span> A NixOS flight simulator. Practice configuration without risking the real machine.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 5. OPERATIONS ═══ -->
+<div class="section">
+  <div class="section-num">05</div>
+  <div class="section-title">Operations: Monitoring & Control</div>
+  <div class="section-desc">
+    The inner becomes a dashboard. The outer provides the AI-powered ops framework.
+  </div>
+
+  <div class="examples">
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">GPU Cluster Monitor</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: real-time dashboard (GPU temps, VRAM, utilization)
+
+Clan A: "Training job"  → Claude monitoring loss curves
+Clan B: "Inference"     → Claude optimizing batch size
+Terminal: nvidia-smi streaming
+
+Gate A = "GPU 0 active"    (● = training, ○ = idle)
+Gate B = "GPU 1 active"    (● = inference, ◐ = cooling)
+
+Stamp captures: GPU state + job hash + model checkpoint
+  → reproducible training state</div>
+      <div class="card-body">
+        The inner dashboard shows your dual 3090 Ti status in real-time.
+        Claude watches the same dashboard and suggests optimizations.
+        "GPU 0 VRAM at 97% — should I reduce batch size?"
+        Gates map to GPU allocation. Stamps capture training checkpoints.
+      </div>
+      <div class="card-what"><span>Emergent:</span> AI-assisted ops where Claude sees the same telemetry you do and reasons about it in context.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">EXAMPLE</div>
+      <div class="card-title">GentlyOS Build Pipeline</div>
+      <div class="card-diagram">OUTER: Gently workbench
+INNER: build status dashboard (17 crates)
+
+Clan A: "Core crate"     → Claude refactoring gently-core
+Clan B: "Network crate"  → Claude adding TLS support
+Terminal: cargo build --workspace 2>&1 | tee build.log
+
+Preview shows 17 crates as a grid:
+  ✓ gently-core      (12.3s)
+  ✓ gently-crypto    (4.1s)
+  ✕ gently-net       (error at line 847)
+  ⏳ gently-shell     (building...)
+
+Claude sees the build error. Fixes it. Reruns.</div>
+      <div class="card-body">
+        The inner dashboard shows the build status of all 17 Rust crates.
+        Claude works on the failing crate in one clan while another clan
+        continues work on a different crate. Each clan's terminal runs in
+        its own worktree. Builds don't interfere with each other.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Parallel builds across parallel clans. Each Claude conversation works on a different crate, sees its own build status, doesn't interfere with others.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 6. RECURSIVE / META ═══ -->
+<div class="section" style="background: var(--surface);">
+  <div class="section-num">06</div>
+  <div class="section-title">Recursive: The Deep Implications</div>
+  <div class="section-desc">
+    When the tool can safely modify itself, some strange and powerful patterns emerge.
+  </div>
+
+  <div class="examples">
+    <div class="card">
+      <div class="card-label">META-PATTERN</div>
+      <div class="card-title">Depth Stacking</div>
+      <div class="card-diagram">DEPTH 0: NixOS (the real OS)
+  └─ DEPTH 1: Gently Shell (Electron, the desktop)
+       └─ DEPTH 2: Dev Workbench (editing Gently)
+            └─ DEPTH 3: Preview (inner Gently)
+                 └─ DEPTH 4: claude.ai (embedded)
+
+Each depth is sandboxed from the one above.
+Edits at depth 2 affect depth 3 only.
+Crashes at depth 3 → rollback. Depth 2 untouched.
+Crashes at depth 2 → Depth 1 catches it.
+Crashes at depth 1 → NixOS restarts the service.</div>
+      <div class="card-body">
+        Five layers of containment. Each one can fail without affecting its parent.
+        NixOS is declarative — even if Gently destroys itself, <strong>nixos-rebuild switch</strong>
+        restores everything from the flake. The system is self-healing at every depth.
+      </div>
+      <div class="card-what"><span>Emergent:</span> Infinite undo at every layer. You cannot permanently break the system at any depth.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">META-PATTERN</div>
+      <div class="card-title">Tool-Aware AI</div>
+      <div class="card-diagram">Claude in the focus pane sees:
+  1. The live preview (via stamp context)
+  2. The terminal output (via clan worktree)
+  3. The git history (via stamp hash)
+  4. The gate state (via stamp)
+  5. The constants from frozen clans
+
+Claude doesn't just write code.
+Claude sees the RUNNING RESULT of its code.
+Claude sees the BUILD OUTPUT of its code.
+Claude sees the HISTORY of its code.
+
+This is the difference between:
+  "write me a function" (blind)
+  "that function renders wrong, fix it" (sighted)</div>
+      <div class="card-body">
+        The stamp protocol gives Claude context about the tool state.
+        The preview gives Claude visual feedback. The terminal gives Claude
+        build feedback. <strong>Claude operates with eyes open</strong> instead
+        of writing code into a void and hoping it works.
+      </div>
+      <div class="card-what"><span>Emergent:</span> AI with a feedback loop. Not "generate and pray" but "generate, observe, adjust." The workbench makes Claude a better developer.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">META-PATTERN</div>
+      <div class="card-title">Progressive Trust Escalation</div>
+      <div class="card-diagram">TRUST LEVEL 0: Hardlock ON, sandbox strict
+  → Claude can only edit CSS variables
+  → Preview validates everything
+  → No script changes allowed
+
+TRUST LEVEL 1: Hardlock ON, patterns relaxed
+  → Claude can edit HTML structure
+  → Validator allows controlled JS
+  → Watchdog monitors for crashes
+
+TRUST LEVEL 2: Hardlock ON, validator permissive
+  → Claude can write new JS functions
+  → Validator checks only for infinite loops
+  → Snapshots taken every edit
+
+TRUST LEVEL 3: Hardlock OFF
+  → Raw editing, no validation
+  → Snapshots still available for rollback
+  → You're in control</div>
+      <div class="card-body">
+        Start with maximum restriction. As you build trust in the code
+        (and in Claude's edits), relax the hardlock progressively.
+        At each level, different gates of capability open.
+        <strong>The gate system literally maps to trust levels.</strong>
+      </div>
+      <div class="card-what"><span>Emergent:</span> A sovereignty model for AI editing. You control exactly how much power the AI has at each moment. Dial it up or down based on risk.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">META-PATTERN</div>
+      <div class="card-title">The Collapse Promotion Pipeline</div>
+      <div class="card-diagram">Clan A explores: "new keyboard layout"
+Clan B explores: "new stamp format"
+
+Both working in sandboxed previews.
+Both validated. Both snapshotted.
+
+COLLAPSE A + B:
+  → New window opens
+  → Constants: "keyboard layout confirmed", "stamp format confirmed"
+  → Inner preview shows BOTH changes merged
+  → If merged preview works → promote to outer shell
+  → If merged preview breaks → rollback to individual constants
+  → The hardlock catches merge conflicts VISUALLY
+
+Eventually:
+  Working inner → tested → promoted → becomes the new Gently
+  Old version → tagged in git → recoverable forever</div>
+      <div class="card-body">
+        The collapse system isn't just for conversation management.
+        It's a <strong>feature promotion pipeline</strong>.
+        Explore in a clan → validate in preview → collapse with other features →
+        test the combination → promote to production.
+        Every step hardlocked. Every step reversible.
+      </div>
+      <div class="card-what"><span>Emergent:</span> CI/CD for a single developer. Clans are feature branches. Collapse is merge. Preview is staging. Promotion is deploy. All visual, all safe.</div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-title">THE DEEPEST PATTERN</div>
+    <div class="insight-body">
+      Every tool in computing history has been either <strong>safe</strong> (can't break things, but limited)
+      or <strong>powerful</strong> (can do anything, but dangerous). The hardlock dissolves this tradeoff.
+      The inner app has <strong>full power</strong> — it can render anything, run any JS, display any layout.
+      But it has <strong>zero ability</strong> to damage the outer shell, lose your work, or crash your workflow.
+      Power without risk. That's what the five layers buy you. That's why the architecture matters.
+    </div>
+  </div>
+</div>
+
+<!-- ═══ HARDLOCK LAYER SUMMARY ═══ -->
+<div class="meta-section">
+  <div class="section-num" style="text-align:center">REFERENCE</div>
+  <div class="section-title" style="text-align:center">The Five Layers in Every Example</div>
+  <div class="section-desc" style="text-align:center; margin: 0 auto 20px;">
+    Every example above has all five layers active simultaneously.
+  </div>
+
+  <div class="layer-stack">
+    <div class="layer l1">
+      <span class="layer-num">1</span>
+      <span class="layer-name">Iframe Sandbox</span>
+      <span class="layer-what">Inner can't see outer. Null origin. No cookies. No navigation.</span>
+    </div>
+    <div class="layer l2">
+      <span class="layer-num">2</span>
+      <span class="layer-name">Validation Gate</span>
+      <span class="layer-what">Parse check. Loop detection. Pattern blocklist. Structure enforcement.</span>
+    </div>
+    <div class="layer l3">
+      <span class="layer-num">3</span>
+      <span class="layer-name">Snapshot + Rollback</span>
+      <span class="layer-what">Auto-save good states. One-click restore. Factory reset available.</span>
+    </div>
+    <div class="layer l4">
+      <span class="layer-num">4</span>
+      <span class="layer-name">Watchdog</span>
+      <span class="layer-what">Heartbeat every 2s. Dead detection at 4s. Auto-rollback on crash.</span>
+    </div>
+    <div class="layer l5">
+      <span class="layer-num">5</span>
+      <span class="layer-name">Structural Locks</span>
+      <span class="layer-what">Required elements enforced. CSS tokens append-only. Grid immutable.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FINAL ═══ -->
+<div class="final">
+  <div class="final-line" style="color:var(--dim)">The outer provides the workspace.</div>
+  <div class="final-line" style="color:var(--dim)">The inner provides the content.</div>
+  <div class="final-line" style="color:var(--dim)">The hardlock ensures the boundary.</div>
+  <div class="final-big">ANYTHING CAN BE THE INNER.</div>
+  <div class="final-line" style="color:var(--muted)">Even itself.</div>
+</div>
+
+</body>
+</html>

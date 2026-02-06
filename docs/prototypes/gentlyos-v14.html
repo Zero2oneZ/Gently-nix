@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>GentlyOS v14 — Secret Toolbar Powers</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+:root{
+  --bg:#08090d;--surface:#0e1015;--panel:#12141c;--kbd-bg:#090b10;
+  --rail-bg:#0a0c12;--dock-bg:#0c0e15;--shelf-bg:#0b0d13;
+  --border:#1c1f2e;--border-hi:#2a2f45;
+  --text:#b8bdd0;--text-hi:#dde0ec;--dim:#4a5070;
+  --accent:#5e7ce2;--accent-dim:rgba(94,124,226,.12);
+  --teal:#3ec9b0;--teal-dim:rgba(62,201,176,.12);
+  --amber:#d4a24e;--amber-dim:rgba(212,162,78,.1);
+  --red:#d45a6e;--violet:#9b7aed;--violet-dim:rgba(155,122,237,.12);
+  --green:#1db954;
+  --kde-title:#1d1f27;--kde-border:#33374a;
+  --topbar-h:30px;--appbar-h:42px;--kbd-h:175px;
+  --rail-w:42px;--rail-exp:148px;--dock-w:40px;--chat-w:215px;
+  --shelf-w:0px;--shelf-open:255px;
+  --mono:'JetBrains Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;scrollbar-width:none}
+*::-webkit-scrollbar{display:none}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;user-select:none}
+svg.ix{width:11px;height:11px;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;flex-shrink:0}
+
+/* ═══ SHELL ══════════════════════════════════════════ */
+#shell{display:grid;grid-template-columns:var(--rail-w) 1fr var(--rail-w) var(--shelf-w);grid-template-rows:var(--topbar-h) 1fr var(--appbar-h);height:100vh;transition:grid-template-columns .25s cubic-bezier(.4,0,.2,1)}
+#shell.l-closed{grid-template-columns:0px 1fr var(--rail-w) var(--shelf-w)}
+#shell.l-exp{grid-template-columns:var(--rail-exp) 1fr var(--rail-w) var(--shelf-w)}
+#shell.r-exp{grid-template-columns:var(--rail-w) 1fr var(--rail-exp) var(--shelf-w)}
+#shell.l-exp.r-exp{grid-template-columns:var(--rail-exp) 1fr var(--rail-exp) var(--shelf-w)}
+#shell.l-closed.r-exp{grid-template-columns:0px 1fr var(--rail-exp) var(--shelf-w)}
+#shell.shelf-open{grid-template-columns:var(--rail-w) 1fr var(--rail-w) var(--shelf-open)}
+#shell.l-exp.shelf-open{grid-template-columns:var(--rail-exp) 1fr var(--rail-w) var(--shelf-open)}
+#shell.l-closed.shelf-open{grid-template-columns:0px 1fr var(--rail-w) var(--shelf-open)}
+
+/* ═══ TOP BAR ════════════════════════════════════════ */
+#topbar{grid-column:1/-1;grid-row:1;background:var(--kde-title);border-bottom:1px solid var(--kde-border);display:flex;align-items:center;padding:0 8px;gap:5px;z-index:50;font-family:var(--mono);font-size:8px}
+.tb-logo{font-weight:700;font-size:9px;letter-spacing:2.5px;color:var(--text-hi)}
+.tb-sep{width:1px;height:14px;background:var(--border);flex-shrink:0}
+.tb-pill{font-size:7px;letter-spacing:.8px;padding:2px 5px;border-radius:3px;border:1px solid var(--border);color:var(--dim);cursor:pointer;flex-shrink:0}
+.tb-pill:hover{border-color:var(--border-hi);color:var(--text)}
+.tb-pill.on{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
+.tb-spacer{flex:1}
+.tb-np{display:flex;align-items:center;gap:4px;color:var(--dim);flex-shrink:0}
+.np-b{width:16px;height:16px;border-radius:3px;border:none;background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.np-b:hover{color:var(--text)}.np-b.pl{color:var(--teal)}
+.np-t{color:var(--text);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb-tray{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.tr-i{display:flex;align-items:center;gap:3px;color:var(--dim);padding:2px 4px;border-radius:3px;cursor:pointer;font-size:7px}
+.tr-i:hover{background:var(--surface);color:var(--text)}
+.tr-d{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+
+/* ═══ RAIL BASE ══════════════════════════════════════ */
+.rail{grid-row:2;background:var(--rail-bg);display:flex;flex-direction:column;overflow:hidden;z-index:20;position:relative}
+#rail-L{grid-column:1;border-right:1px solid var(--border);transition:opacity .2s,visibility .2s}
+#rail-L.closed{opacity:0;visibility:hidden;pointer-events:none;width:0;min-width:0;overflow:hidden}
+#rail-R{grid-column:3;border-left:1px solid var(--border)}
+/* L reopen — thin square that floats when rail is closed */
+#l-reopen{position:fixed;left:0;top:calc(var(--topbar-h) + 4px);width:18px;height:18px;border:1px solid var(--border);border-left:none;border-radius:0 4px 4px 0;background:var(--rail-bg);color:var(--dim);cursor:pointer;display:none;align-items:center;justify-content:center;z-index:25;transition:all .15s}
+#l-reopen:hover{background:var(--surface);color:var(--teal);border-color:var(--teal);width:22px}
+#l-reopen.vis{display:flex}
+.rh{display:flex;align-items:center;justify-content:center;padding:3px;border-bottom:1px solid var(--border);flex-shrink:0;gap:3px}
+.rh-lb{display:none;font-family:var(--mono);font-size:6px;letter-spacing:1px;color:var(--dim);flex:1}
+.rail.exp .rh-lb{display:block}.rail.exp .rh{justify-content:flex-start;padding:3px 6px}
+.rtog{width:22px;height:14px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.rtog:hover{color:var(--text);border-color:var(--border-hi)}.rtog.on{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
+/* Close button on left rail header */
+#l-close{width:14px;height:14px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+#l-close:hover{background:var(--red);color:#fff;border-color:var(--red)}
+.rb{flex:1;overflow-y:auto;overflow-x:hidden;padding:2px}
+.rail.exp .rb{padding:2px 4px}
+.rsep{width:80%;height:1px;background:var(--border);margin:3px auto;flex-shrink:0}.rail.exp .rsep{width:100%}
+/* Secret hint — tiny glow dot */
+.rail-secret-hint{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;opacity:.3;transition:opacity .3s}
+.rail:hover .rail-secret-hint{opacity:.7;animation:secretPulse 2s infinite}
+@keyframes secretPulse{0%,100%{opacity:.3}50%{opacity:.8}}
+
+/* ═══ ROTATING BUTTONS ═══════════════════════════════ */
+.rot-btn{width:100%;display:flex;align-items:center;gap:3px;padding:3px;border-radius:4px;border:1px solid transparent;background:transparent;color:var(--dim);cursor:pointer;font-family:var(--mono);font-size:7px;transition:all .12s;flex-shrink:0;position:relative}
+.rot-btn:hover{background:var(--surface);color:var(--text);border-color:var(--border)}
+.rot-btn.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
+.rot-ic{width:24px;height:24px;border-radius:4px;background:var(--panel);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--border);transition:transform .2s}
+.rot-ic.spin{animation:rotSpin .25s ease-out}
+@keyframes rotSpin{0%{transform:rotateY(0)}50%{transform:rotateY(90deg)}100%{transform:rotateY(0)}}
+.rot-lb{display:none;white-space:nowrap;flex:1}.rail.exp .rot-lb{display:block}
+.rot-dep{position:absolute;bottom:1px;right:1px;display:flex;gap:1px}
+.rot-dot{width:3px;height:3px;border-radius:50%;background:var(--dim)}
+.rail:not(.exp) .rot-btn{justify-content:center;padding:2px}
+
+/* ═══ LEFT TREE ══════════════════════════════════════ */
+.tn-r{display:flex;align-items:center;gap:2px;padding:2px;border-radius:3px;cursor:pointer;transition:background .1s;min-height:20px}
+.tn-r:hover{background:var(--surface)}.tn-r.sel{background:var(--teal-dim);border-left:2px solid var(--teal)}
+.tn-ind{flex-shrink:0}.tn-t{width:10px;font-size:7px;color:var(--dim);cursor:pointer;flex-shrink:0;text-align:center;font-family:var(--mono);transition:transform .15s;border:none;background:none}
+.tn-t.open{transform:rotate(90deg)}.tn-t.leaf{visibility:hidden}
+.tn-i{width:12px;height:12px;border-radius:2px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:7px;color:#fff}
+.tn-l{font-family:var(--mono);font-size:7px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tn-c{overflow:hidden;transition:max-height .2s}.tn-c.hid{max-height:0!important}
+.rail:not(.exp) .tn-l,.rail:not(.exp) .tn-t{display:none}
+.rail:not(.exp) .tn-r{justify-content:center;padding:2px}
+.rail:not(.exp) .tn-i{width:22px;height:18px;border-radius:3px}
+.rail:not(.exp) .tn-ind{display:none}
+
+/* ═══ MIDDLE ═════════════════════════════════════════ */
+#mid{grid-column:2;grid-row:2;display:flex;flex-direction:column;overflow:hidden}
+#content{flex:1;display:flex;overflow:hidden;min-height:0}
+
+/* Chat */
+#chat{width:var(--chat-w);min-width:0;background:var(--surface);display:flex;flex-direction:column;overflow:hidden;transition:width .3s,opacity .2s}
+#chat.coll{width:0!important;opacity:0;pointer-events:none}
+#chat-h{padding:4px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:5px;flex-shrink:0}
+.cn-nm{font-weight:600;font-size:11px}.cn-st{font-family:var(--mono);font-size:7px;color:var(--teal)}
+#chat-coll{width:16px;height:16px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:auto}
+#chat-coll:hover{color:var(--text);border-color:var(--border-hi)}
+#msgs{flex:1;overflow-y:auto;padding:5px;display:flex;flex-direction:column;gap:3px}
+.m{padding:4px 6px;border-radius:5px;font-size:9px;line-height:1.5;max-width:92%}
+.m.u{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:2px}
+.m.c{align-self:flex-start;background:var(--panel);border:1px solid var(--border);border-bottom-left-radius:2px}
+.m code{font-family:var(--mono);font-size:8px;background:rgba(0,0,0,.25);padding:1px 3px;border-radius:2px}
+.mtag{display:inline-flex;align-items:center;gap:2px;font-family:var(--mono);font-size:6px;padding:1px 4px;border-radius:2px;margin-top:2px}
+
+/* Context Dock */
+#dock{width:var(--dock-w);min-width:var(--dock-w);background:var(--dock-bg);border-left:1px solid var(--border);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;flex-shrink:0;z-index:10;position:relative}
+#dock.coll{width:3px;min-width:3px;overflow:hidden}#dock.coll *{display:none}
+#dock-e{position:absolute;top:0;bottom:0;left:-2px;width:4px;cursor:col-resize;z-index:15}
+#dock-e:hover{background:rgba(62,201,176,.3)}
+#dk-h{width:100%;padding:3px 0;display:flex;flex-direction:column;align-items:center;gap:2px;border-bottom:1px solid var(--border);cursor:pointer;flex-shrink:0}
+#dk-h:hover{background:rgba(62,201,176,.06)}
+#dk-lb{font-family:var(--mono);font-size:5px;letter-spacing:1.5px;color:var(--dim)}
+.dk-g{width:12px;height:2px;border-radius:1px;background:var(--border)}
+#dk-h:hover .dk-g{background:var(--teal)}
+#dk-items{flex:1;width:100%;display:flex;flex-direction:column;align-items:center;padding:3px 2px;gap:2px;overflow-y:auto}
+.dpin{width:32px;height:32px;border-radius:5px;border:2px solid transparent;background:var(--panel);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;position:relative;transition:all .15s;flex-shrink:0}
+.dpin:hover{border-color:var(--border-hi);transform:scale(1.08)}
+.dpin.active{border-color:var(--teal);background:var(--teal-dim);box-shadow:0 0 8px rgba(62,201,176,.2)}
+.dpin-i{width:16px;height:16px;border-radius:3px;display:flex;align-items:center;justify-content:center}
+.dpin-n{font-family:var(--mono);font-size:4px;color:var(--dim)}.dpin.active .dpin-n{color:var(--teal)}
+.dpin-x{position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:50%;background:var(--red);color:#fff;display:none;align-items:center;justify-content:center;font-size:6px;z-index:5;cursor:pointer}
+.dpin:hover .dpin-x{display:flex}
+.dpin.grp{border-style:dashed}.dpin.grp.active{border-style:solid}
+#dock.dov{border-color:var(--teal);background:rgba(62,201,176,.04)}
+#dk-drop{width:28px;height:28px;border:2px dashed var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--dim);flex-shrink:0;margin-top:auto;margin-bottom:3px}
+/* Dock secret hint */
+.dock-secret-hint{position:absolute;bottom:40px;width:6px;height:6px;border-radius:50%;background:var(--amber);opacity:0;transition:opacity .4s}
+#dock:hover .dock-secret-hint{opacity:.35;animation:secretPulse 2s infinite}
+
+/* ═══ PANE 2 ═════════════════════════════════════════ */
+#pane2{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:200px;position:relative}
+#p2-bar{display:flex;align-items:center;background:var(--kde-title);border-bottom:1px solid var(--kde-border);min-height:25px;padding:0 3px;flex-shrink:0}
+#p2-tabs{display:flex;align-items:stretch;flex:1;overflow-x:auto;gap:0;min-height:25px}
+.p2t{display:flex;align-items:center;gap:3px;padding:0 7px;border-right:1px solid var(--kde-border);cursor:pointer;transition:all .12s;flex-shrink:0}
+.p2t:hover{background:rgba(255,255,255,.03)}.p2t.on{background:var(--panel);border-bottom:2px solid var(--teal)}
+.p2t-i{width:10px;height:10px;border-radius:2px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.p2t-n{font-family:var(--mono);font-size:7px;color:var(--dim);white-space:nowrap}.p2t.on .p2t-n{color:var(--text-hi)}
+.p2t-x{width:10px;height:10px;border-radius:2px;border:none;background:transparent;color:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.p2t:hover .p2t-x{color:var(--dim)}.p2t-x:hover{background:var(--red);color:#fff!important}
+#p2-add,#p2-pin{width:20px;height:20px;border:none;background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0}
+#p2-add:hover{color:var(--text);background:var(--surface)}
+#p2-pin{border:1px solid var(--border);margin-left:2px}
+#p2-pin:hover{color:var(--teal);border-color:var(--teal)}
+#p2-pin.pinned{color:var(--teal);border-color:var(--teal);background:var(--teal-dim)}
+#p2-exp{width:20px;height:20px;border:none;background:transparent;color:var(--dim);cursor:pointer;display:none;align-items:center;justify-content:center;border-radius:3px}
+#p2-exp:hover{color:var(--accent)}.p2ev{display:flex!important}
+#p2-body{flex:1;overflow:hidden;position:relative}
+.p2p{position:absolute;inset:0;display:none;flex-direction:column;overflow-y:auto;padding:8px}.p2p.on{display:flex}
+.p2c{font-family:var(--mono);font-size:9px;color:var(--text);line-height:1.7;white-space:pre-line}
+/* CoT */
+.ct-n{display:flex;flex-direction:column;align-items:center;margin-bottom:3px}
+.ct-c{width:125px;border:1px solid var(--kde-border);border-radius:5px;background:var(--panel);cursor:pointer;transition:all .15s;overflow:hidden}
+.ct-c:hover{border-color:var(--border-hi);box-shadow:0 2px 10px rgba(0,0,0,.3)}
+.ct-c.foc{border-color:var(--teal);box-shadow:0 0 10px rgba(62,201,176,.15)}
+.ct-h{display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid var(--border)}
+.ct-ic{width:11px;height:11px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:6px;color:#fff;flex-shrink:0}
+.ct-nm{font-family:var(--mono);font-size:6px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ct-ty{font-family:var(--mono);font-size:5px;padding:1px 3px;border-radius:2px;flex-shrink:0}
+.ct-bd{padding:2px 5px;font-family:var(--mono);font-size:6px;color:var(--dim);line-height:1.3;max-height:28px;overflow:hidden}
+.ct-ln{width:1.5px;height:12px;background:var(--border);flex-shrink:0}
+.ct-br{display:flex;gap:6px;justify-content:center}
+/* Compile shelf */
+#csh{height:0;overflow:hidden;transition:height .2s;border-top:1px solid var(--border);background:var(--kbd-bg);flex-shrink:0}
+#csh.open{height:65px}
+.csh-i{height:65px;display:flex;flex-direction:column;padding:3px 8px}
+.csh-h{display:flex;align-items:center;gap:4px;margin-bottom:2px}
+.csh-lb{font-family:var(--mono);font-size:6px;letter-spacing:1px;color:var(--dim)}
+.csh-m{font-family:var(--mono);font-size:6px;padding:1px 4px;border-radius:2px;border:1px solid var(--border);color:var(--dim);cursor:pointer;background:transparent}
+.csh-m:hover{border-color:var(--border-hi);color:var(--text)}.csh-m.on{border-color:var(--violet);color:var(--violet);background:var(--violet-dim)}
+#csh-in{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:3px 7px;font-family:var(--mono);font-size:8px;color:var(--text);outline:none;resize:none}
+#csh-in:focus{border-color:var(--violet)}#csh-in::placeholder{color:var(--dim)}
+
+/* ═══════════════════════════════════════════════════════
+   ★★★ SECRET MODALS ★★★
+   Left = Macro Builder (chat + glowing .md files)
+   Middle = Asset Desktop (resources + drag-in)
+   Right = Script Forge (custom toolbar button builder)
+   ═══════════════════════════════════════════════════════ */
+.secret-overlay{
+  position:fixed;z-index:100;
+  background:rgba(8,9,13,.85);backdrop-filter:blur(8px);
+  border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 8px 40px rgba(0,0,0,.5);
+  display:none;flex-direction:column;overflow:hidden;
+  animation:secretOpen .3s cubic-bezier(.34,1.56,.64,1);
+}
+.secret-overlay.open{display:flex}
+@keyframes secretOpen{from{opacity:0;transform:scale(.9) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.so-head{display:flex;align-items:center;padding:6px 10px;border-bottom:1px solid var(--border);flex-shrink:0;gap:5px}
+.so-title{font-family:var(--mono);font-size:9px;color:var(--text-hi);flex:1;font-weight:600}
+.so-hint{font-family:var(--mono);font-size:6px;color:var(--dim);letter-spacing:.5px}
+.so-close{width:18px;height:18px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.so-close:hover{background:var(--red);color:#fff;border-color:var(--red)}
+.so-body{flex:1;overflow-y:auto;padding:8px}
+
+/* ─── LEFT SECRET: Macro Builder ─────────────────── */
+#sec-macro{left:50px;top:60px;width:380px;height:440px}
+.macro-files{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.macro-file{
+  width:80px;height:68px;border:1px solid var(--border);border-radius:6px;
+  background:var(--panel);display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:3px;cursor:pointer;transition:all .2s;position:relative;
+}
+.macro-file:hover{border-color:var(--teal);transform:scale(1.05)}
+.macro-file.glow{
+  border-color:var(--teal);
+  box-shadow:0 0 16px rgba(62,201,176,.25),inset 0 0 12px rgba(62,201,176,.08);
+  animation:mdGlow 3s ease-in-out infinite;
+}
+@keyframes mdGlow{0%,100%{box-shadow:0 0 12px rgba(62,201,176,.2)}50%{box-shadow:0 0 20px rgba(62,201,176,.35),inset 0 0 15px rgba(62,201,176,.1)}}
+.mf-icon{font-size:16px}
+.mf-name{font-family:var(--mono);font-size:6px;color:var(--text);text-align:center;max-width:74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mf-type{font-family:var(--mono);font-size:5px;color:var(--dim);position:absolute;top:3px;right:3px}
+.macro-add{border-style:dashed;color:var(--dim)}
+.macro-add:hover{color:var(--teal);border-color:var(--teal)}
+.macro-chat{border-top:1px solid var(--border);padding-top:6px;margin-top:auto}
+.mc-msgs{max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.mc-m{padding:3px 6px;border-radius:4px;font-size:8px;line-height:1.4;max-width:90%}
+.mc-m.u{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:1px}
+.mc-m.c{align-self:flex-start;background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:1px}
+.mc-in-row{display:flex;gap:4px}
+.mc-input{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-family:var(--mono);font-size:8px;color:var(--text);outline:none}
+.mc-input:focus{border-color:var(--teal)}.mc-input::placeholder{color:var(--dim)}
+.mc-send{padding:3px 8px;border-radius:4px;border:none;background:var(--teal);color:#fff;font-family:var(--mono);font-size:7px;cursor:pointer}
+.mc-send:hover{opacity:.9}
+
+/* ─── MIDDLE SECRET: Asset Desktop ───────────────── */
+#sec-assets{left:50%;top:50%;transform:translate(-50%,-50%);width:500px;height:380px}
+.asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px}
+.asset-item{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:8px 4px;border:1px solid transparent;border-radius:6px;
+  cursor:pointer;transition:all .15s;
+}
+.asset-item:hover{border-color:var(--border);background:var(--surface)}
+.asset-item.dragging{opacity:.4}
+.asset-thumb{
+  width:52px;height:42px;border-radius:4px;background:var(--panel);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+}
+.asset-thumb-icon{font-size:18px;color:var(--dim)}
+.asset-name{font-family:var(--mono);font-size:6px;color:var(--text);text-align:center;max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asset-size{font-family:var(--mono);font-size:5px;color:var(--dim)}
+.asset-drop{
+  grid-column:1/-1;height:60px;border:2px dashed var(--border);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  color:var(--dim);font-family:var(--mono);font-size:8px;transition:all .2s;
+}
+.asset-drop:hover{border-color:var(--amber);color:var(--amber)}
+.asset-scope{padding:4px 8px;border-top:1px solid var(--border);margin-top:auto;display:flex;align-items:center;gap:5px;flex-shrink:0}
+.as-badge{font-family:var(--mono);font-size:6px;padding:2px 6px;border-radius:3px;border:1px solid var(--amber);color:var(--amber);background:var(--amber-dim)}
+
+/* ─── RIGHT SECRET: Script Forge ─────────────────── */
+#sec-forge{right:50px;top:50px;width:400px;height:460px}
+.forge-editor{display:flex;flex-direction:column;gap:6px}
+.forge-preview{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--surface)}
+.forge-btn-preview{
+  display:flex;align-items:center;gap:3px;padding:4px 8px;border-radius:4px;
+  border:1px solid var(--border);background:var(--panel);cursor:pointer;
+  font-family:var(--mono);font-size:7px;color:var(--text);transition:all .15s;
+}
+.forge-btn-preview:hover{border-color:var(--accent);transform:scale(1.05)}
+.forge-btn-preview .fb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.forge-code{flex:1;min-height:120px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:var(--mono);font-size:8px;color:var(--green);outline:none;resize:none;line-height:1.6}
+.forge-code:focus{border-color:var(--green)}
+.forge-actions{display:flex;gap:4px}
+.forge-act{padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--dim);font-family:var(--mono);font-size:7px;cursor:pointer}
+.forge-act:hover{border-color:var(--accent);color:var(--text)}
+.forge-act.primary{border-color:var(--green);color:var(--green);background:rgba(29,185,84,.1)}
+.forge-act.primary:hover{background:rgba(29,185,84,.2)}
+.forge-log{margin-top:4px;padding:4px 6px;background:rgba(0,0,0,.3);border-radius:4px;font-family:var(--mono);font-size:7px;color:var(--dim);max-height:80px;overflow-y:auto;line-height:1.5}
+
+/* ═══ KEYBOARD ═══════════════════════════════════════ */
+#kbd-w{height:0;overflow:hidden;flex-shrink:0;transition:height .28s}
+#kbd-w.open{height:var(--kbd-h)}
+#kbd{height:var(--kbd-h);background:var(--kbd-bg);border-top:1px solid var(--border);display:flex;flex-direction:column}
+#kbd-bar{display:flex;align-items:center;border-bottom:1px solid var(--border);background:var(--surface);padding:0 4px}
+.ftab{padding:3px 6px;font-family:var(--mono);font-size:7px;letter-spacing:.8px;color:var(--dim);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none}
+.ftab:hover{color:var(--text)}.ftab.on{color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-dim)}
+#inp-pill{display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:2px 3px 2px 10px;flex:1;max-width:440px;margin:3px 0}
+#inp-pill:focus-within{border-color:var(--accent)}
+#kbd-in{background:none;border:none;color:var(--text);font-family:var(--sans);font-size:10px;outline:none;padding:2px 0;flex:1;min-width:30px}
+#kbd-in::placeholder{color:var(--dim)}
+#kbd-go{padding:2px 6px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:var(--mono);font-size:7px;cursor:pointer}
+#kbd-x{width:18px;height:18px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:3px}
+#keys{flex:1;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:3px 8px}
+.kr{display:flex;justify-content:center;gap:2px}
+.k{min-width:21px;height:20px;border-radius:3px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-family:var(--mono);font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:1;max-width:30px}
+.k:hover{background:var(--border-hi)}.k:active{background:var(--accent);color:#fff;transform:scale(.94)}
+.k.w{min-width:32px;max-width:45px;font-size:7px}.k.sp{flex:4;max-width:none;color:var(--dim);font-size:7px;letter-spacing:2px}.k.en{flex:1.5;max-width:52px;border-color:var(--accent);color:var(--accent);font-size:7px}
+
+/* ═══ BOTTOM + SHELF ═════════════════════════════════ */
+#appbar{grid-column:1/-1;grid-row:3;background:var(--kde-title);border-top:1px solid var(--kde-border);display:flex;align-items:center;padding:0 6px;z-index:50}
+#app-dock{display:flex;align-items:center;gap:2px;flex:1;justify-content:center;overflow-x:auto}
+.ai{display:flex;flex-direction:column;align-items:center;padding:2px 6px 1px;border-radius:4px;cursor:pointer;position:relative;transition:all .12s;min-width:38px}
+.ai:hover{background:var(--surface)}.ai.foc{background:var(--accent-dim)}
+.ai-g{width:20px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.ai-n{font-family:var(--mono);font-size:5px;color:var(--dim);margin-top:1px}
+.ai-d{position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;display:none}
+.ai.run .ai-d{display:block}
+#app-sep{width:1px;height:24px;background:var(--border);margin:0 4px}
+#kbd-btn{width:24px;height:24px;border-radius:4px;border:1px solid var(--border);background:var(--panel);color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+#kbd-btn:hover{border-color:var(--accent);color:var(--accent)}
+#kbd-btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+
+#shelf{grid-column:4;grid-row:1/4;background:var(--shelf-bg);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;z-index:30}
+#sh-h{display:flex;align-items:center;padding:4px 8px;border-bottom:1px solid var(--border);flex-shrink:0;gap:4px}
+.sht{font-family:var(--mono);font-size:7px;letter-spacing:.8px;padding:2px 8px;border-radius:3px;border:1px solid var(--border);color:var(--dim);cursor:pointer;background:transparent}
+.sht:hover{border-color:var(--border-hi);color:var(--text)}.sht.on{border-color:var(--violet);color:var(--violet);background:var(--violet-dim)}
+#sh-x{width:16px;height:16px;border:none;background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:auto;border-radius:3px}
+#sh-x:hover{color:var(--text);background:var(--surface)}
+#sh-q{display:flex;padding:4px 8px;flex-shrink:0}
+#sh-qi{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-family:var(--mono);font-size:8px;color:var(--text);outline:none}
+#sh-qi:focus{border-color:var(--violet)}#sh-qi::placeholder{color:var(--dim)}
+#sh-body{flex:1;overflow-y:auto;padding:4px 0}
+.fc{padding:5px 8px;border-bottom:1px solid var(--border);cursor:pointer}.fc:hover{background:var(--surface)}
+.fc-h{display:flex;align-items:center;gap:4px;margin-bottom:2px}
+.fc-av{width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:6px;color:#fff;flex-shrink:0}
+.fc-u{font-family:var(--mono);font-size:7px;color:var(--text)}.fc-t{font-family:var(--mono);font-size:6px;color:var(--dim);margin-left:auto}
+.fc-b{font-size:8px;color:var(--text);line-height:1.4;margin-bottom:2px}
+.fc-p{width:100%;height:36px;border-radius:4px;background:var(--panel);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:6px;color:var(--dim);padding:3px;margin-bottom:2px}
+.sr{padding:4px 8px;border-bottom:1px solid var(--border);cursor:pointer}.sr:hover{background:var(--surface)}
+.sr-c{font-family:var(--mono);font-size:6px;color:var(--dim);margin-bottom:1px}
+.sr-m{font-size:8px;color:var(--text);line-height:1.3}.sr-m mark{background:var(--violet-dim);color:var(--violet);padding:0 2px;border-radius:2px}
+.sh-tog{position:absolute;right:0;z-index:25;width:18px;height:18px;border-radius:3px 0 0 3px;border:1px solid var(--border);border-right:none;background:var(--panel);color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.sh-tog:hover{color:var(--text);border-color:var(--border-hi)}
+.sh-tog.on{border-color:var(--violet);color:var(--violet);background:var(--violet-dim)}
+#stf{top:34px}#sts{bottom:34px}
+
+@keyframes dockPop{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}
+</style>
+</head>
+<body>
+<div id="shell">
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <span class="tb-logo">GENTLYOS</span><span class="tb-sep"></span>
+  <button class="tb-pill on">LEGO</button><button class="tb-pill">FORK</button><button class="tb-pill">LIVE</button>
+  <span class="tb-spacer"></span>
+  <div class="tb-np"><button class="np-b"><svg class="ix" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4"/><line x1="5" y1="4" x2="5" y2="20"/></svg></button><button class="np-b pl"><svg class="ix" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button><button class="np-b"><svg class="ix" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20"/><line x1="19" y1="4" x2="19" y2="20"/></svg></button><span class="np-t">BoC — Dayvan Cowboy</span></div>
+  <span class="tb-sep"></span>
+  <div class="tb-tray"><div class="tr-i"><span class="tr-d" style="background:var(--teal)"></span>NET</div><div class="tr-i"><span class="tr-d" style="background:var(--amber)"></span>3</div><div class="tr-i"><span class="tr-d" style="background:var(--teal)"></span>GD</div></div>
+  <span class="tb-sep"></span>
+  <span style="font-family:var(--mono);font-size:8px;color:var(--text)" id="clock">00:00</span>
+</div>
+
+<!-- LEFT RAIL — Windows-style file tree, collapsible to thin square -->
+<div class="rail" id="rail-L">
+  <div class="rh"><span class="rh-lb">PROJECTS</span><button class="rtog" id="tL"><svg class="ix" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button><button id="l-close"><svg class="ix" viewBox="0 0 24 24" style="width:7px;height:7px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="rb" id="tree-root"></div>
+  <div id="l-btns" style="border-top:1px solid var(--border);padding:3px 2px;flex-shrink:0"></div>
+  <div class="rail-secret-hint" style="background:var(--teal)"></div>
+</div>
+<!-- Thin square reopen button (visible when rail-L is closed) -->
+<button id="l-reopen"><svg class="ix" viewBox="0 0 24 24" style="width:8px;height:8px"><polyline points="9 18 15 12 9 6"/></svg></button>
+
+<!-- MIDDLE -->
+<div id="mid">
+  <div id="content">
+    <div id="chat">
+      <div id="chat-h">
+        <div style="width:12px;height:12px;border-radius:3px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;color:var(--accent)"><svg class="ix" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+        <div><div class="cn-nm">Claude</div><div class="cn-st">opus · active</div></div>
+        <button id="chat-coll"><svg class="ix" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+      </div>
+      <div id="msgs"></div>
+    </div>
+    <div id="dock">
+      <div id="dock-e"></div>
+      <div id="dk-h"><div class="dk-g"></div><span id="dk-lb">CTX</span><div class="dk-g"></div></div>
+      <div id="dk-items"></div>
+      <div class="dock-secret-hint"></div>
+      <div id="dk-drop"><svg class="ix" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+    </div>
+
+    <div id="pane2">
+      <button class="sh-tog" id="stf" title="Feed"><svg class="ix" viewBox="0 0 24 24"><path d="M4 11a9 9 0 019-9"/><path d="M4 4a16 16 0 0116 16"/><circle cx="5" cy="19" r="2"/></svg></button>
+      <button class="sh-tog" id="sts" title="Search"><svg class="ix" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+      <div id="p2-bar">
+        <div id="p2-tabs"></div>
+        <button id="p2-add"><svg class="ix" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        <button id="p2-pin"><svg class="ix" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V16a1 1 0 001 1h12a1 1 0 001-1v-.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V7"/></svg></button>
+        <button id="p2-exp"><svg class="ix" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+      </div>
+      <div id="p2-body"></div>
+      <div id="csh"><div class="csh-i"><div class="csh-h"><span class="csh-lb">COMPILE ›</span><button class="csh-m on" data-m="bash">BASH</button><button class="csh-m" data-m="py">PY</button><button class="csh-m" data-m="sem">SEM</button></div><textarea id="csh-in" placeholder="compile --target=cot --mode=semantic"></textarea></div></div>
+    </div>
+  </div>
+  <div id="kbd-w"><div id="kbd"><div id="kbd-bar"><button class="ftab on" data-f="chat">CHAT</button><button class="ftab" data-f="term">TERM</button><div id="inp-pill"><input id="kbd-in" type="text" placeholder="Message Claude..." autocomplete="off"/><button id="kbd-go"><span id="go-lb">SEND</span></button></div><button class="ftab" data-f="cot">COT</button><button class="ftab" data-f="find">FIND</button><button id="kbd-x"><svg style="width:10px;height:10px;stroke:currentColor;stroke-width:1.5;fill:none" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button></div><div id="keys"><div class="kr"><button class="k">q</button><button class="k">w</button><button class="k">e</button><button class="k">r</button><button class="k">t</button><button class="k">y</button><button class="k">u</button><button class="k">i</button><button class="k">o</button><button class="k">p</button></div><div class="kr"><button class="k">a</button><button class="k">s</button><button class="k">d</button><button class="k">f</button><button class="k">g</button><button class="k">h</button><button class="k">j</button><button class="k">k</button><button class="k">l</button></div><div class="kr"><button class="k w">SH</button><button class="k">z</button><button class="k">x</button><button class="k">c</button><button class="k">v</button><button class="k">b</button><button class="k">n</button><button class="k">m</button><button class="k w">⌫</button></div><div class="kr"><button class="k w">123</button><button class="k w">@</button><button class="k sp">SPACE</button><button class="k w">.</button><button class="k en">ENTER</button></div></div></div></div>
+</div>
+
+<!-- RIGHT RAIL -->
+<div class="rail" id="rail-R">
+  <div class="rh"><span class="rh-lb">CONTROLS</span><button class="rtog" id="tR"><svg class="ix" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button></div>
+  <div class="rb" id="r-body"></div>
+  <div class="rail-secret-hint" style="background:var(--green)"></div>
+</div>
+
+<!-- SHELF -->
+<div id="shelf">
+  <div id="sh-h"><button class="sht on" data-sh="feed">FEED</button><button class="sht" data-sh="search">SEARCH</button><button id="sh-x"><svg class="ix" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div id="sh-q"><input id="sh-qi" type="text" placeholder="Search chats..." autocomplete="off"/></div>
+  <div id="sh-body"></div>
+</div>
+
+<!-- BOTTOM DOCK -->
+<div id="appbar"><div id="app-dock"></div><span id="app-sep"></span><button id="kbd-btn"><svg class="ix" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6.01" y2="8"/><line x1="10" y1="8" x2="10.01" y2="8"/><line x1="8" y1="16" x2="16" y2="16"/></svg></button></div>
+
+</div>
+
+<!-- ★★★ SECRET OVERLAYS ★★★ -->
+<!-- LEFT: Macro Builder -->
+<div class="secret-overlay" id="sec-macro">
+  <div class="so-head">
+    <span style="font-size:12px">📝</span>
+    <span class="so-title">Macro Builder</span>
+    <span class="so-hint">behavior files · prompts · .md artifacts</span>
+    <button class="so-close" id="sec-macro-x"><svg class="ix" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="so-body" id="macro-body"></div>
+</div>
+
+<!-- MIDDLE: Asset Desktop -->
+<div class="secret-overlay" id="sec-assets">
+  <div class="so-head">
+    <span style="font-size:12px">📁</span>
+    <span class="so-title">Asset Desktop</span>
+    <span class="so-hint">in-scope resources · not processed</span>
+    <button class="so-close" id="sec-assets-x"><svg class="ix" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="so-body" id="asset-body"></div>
+  <div class="asset-scope"><span class="as-badge">📂 /public — in scope, not processing</span></div>
+</div>
+
+<!-- RIGHT: Script Forge -->
+<div class="secret-overlay" id="sec-forge">
+  <div class="so-head">
+    <span style="font-size:12px">⚒️</span>
+    <span class="so-title">Script Forge</span>
+    <span class="so-hint">build custom toolbar buttons · affects all pane2</span>
+    <button class="so-close" id="sec-forge-x"><svg class="ix" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="so-body" id="forge-body"></div>
+</div>
+
+<script>
+const APPS=[
+  {id:'kde',name:'KDE Plasma',color:'#1d99f3',icon:'desktop'},
+  {id:'steam',name:'Steam',color:'#1b2838',icon:'gamepad'},
+  {id:'discord',name:'Discord',color:'#5865f2',icon:'chat'},
+  {id:'spotify',name:'Spotify',color:'#1db954',icon:'music'},
+  {id:'konsole',name:'Konsole',color:'#4d4d4d',icon:'term'},
+  {id:'miner',name:'BTC Miner',color:'#f7931a',icon:'cpu'},
+];
+const IC={
+  desktop:'<path d="M2 3h20v14H2z"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+  gamepad:'<line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><path d="M17 5H7a4 4 0 00-4 3.6C2.6 9.4 2 14 2 16a3 3 0 003 3c1 0 2-1 2-1l1.4-1.4A2 2 0 0110 16h4a2 2 0 011.4.6L17 18s1 1 2 1a3 3 0 003-3c0-2-.6-6.6-.7-7.3A4 4 0 0017 5z"/>',
+  chat:'<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>',
+  music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  term:'<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>',
+  cpu:'<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/>',
+  code:'<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  file:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  globe:'<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>',
+  search:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  fork:'<circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/>',
+  plug:'<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a6 6 0 01-12 0V8z"/>',
+  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>',
+  layers:'<polygon points="12 2 2 7 12 12 22 7"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+  split:'<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/>',
+  collapse:'<line x1="5" y1="12" x2="19" y2="12"/>',
+  expand:'<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>',
+  tab:'<rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  play:'<polygon points="5 3 19 12 5 21"/>',
+  wrench:'<path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>',
+};
+function svg(p,s=9){return`<svg viewBox="0 0 24 24" style="width:${s}px;height:${s}px;stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round">${p}</svg>`}
+const $=id=>document.getElementById(id);let uid=400;
+
+/* ═══ ROTATING TOOLBAR BUTTONS ═══════════════════════ */
+const L_BTNS=[
+  {id:'lb1',modes:[{icon:'fork',label:'Fork',color:'var(--teal)'},{icon:'layers',label:'Branch',color:'var(--amber)'},{icon:'lock',label:'Snapshot',color:'var(--violet)'}],mi:0},
+  {id:'lb2',modes:[{icon:'file',label:'Save',color:'var(--teal)'},{icon:'code',label:'Export',color:'var(--amber)'},{icon:'globe',label:'Publish',color:'var(--violet)'}],mi:0},
+  {id:'lb3',modes:[{icon:'search',label:'Find',color:'var(--teal)'},{icon:'layers',label:'Filter',color:'var(--amber)'},{icon:'tab',label:'Compare',color:'var(--violet)'}],mi:0},
+];
+const R_BTNS=[
+  {id:'rb1',modes:[{icon:'split',label:'Split H',color:'var(--teal)'},{icon:'collapse',label:'Split V',color:'var(--amber)'},{icon:'tab',label:'Full',color:'var(--violet)'}],mi:0},
+  {id:'rb2',modes:[{icon:'expand',label:'Expand',color:'var(--teal)'},{icon:'collapse',label:'Collapse',color:'var(--amber)'},{icon:'layers',label:'Layers',color:'var(--violet)'}],mi:0},
+  {id:'rb3',modes:[{icon:'plus',label:'New Space',color:'var(--teal)'},{icon:'tab',label:'Tab All',color:'var(--amber)'},{icon:'lock',label:'Lock',color:'var(--violet)'}],mi:0},
+  {id:'rb4',modes:[{icon:'term',label:'Compile',color:'var(--violet)'},{icon:'code',label:'Script',color:'var(--amber)'},{icon:'play',label:'Run',color:'var(--teal)'}],mi:0},
+  {id:'rb5',modes:[{icon:'plug',label:'MCP',color:'var(--teal)'},{icon:'globe',label:'Web',color:'var(--amber)'},{icon:'search',label:'Search',color:'var(--violet)'}],mi:0},
+];
+function renderRot(btns,c){
+  c.innerHTML='';
+  btns.forEach((b,i)=>{
+    const m=b.modes[b.mi],el=document.createElement('button');el.className='rot-btn';
+    const dots=b.modes.map((_,j)=>`<span class="rot-dot" style="${j===b.mi?'background:'+m.color:''}"></span>`).join('');
+    el.innerHTML=`<div class="rot-ic">${svg(IC[m.icon],12)}</div><span class="rot-lb">${m.label}</span><div class="rot-dep">${dots}</div>`;
+    el.style.color=m.color;let lc=0;
+    el.addEventListener('click',()=>{const n=Date.now();if(n-lc<350){b.mi=(b.mi+1)%b.modes.length;el.querySelector('.rot-ic').classList.add('spin');setTimeout(()=>el.querySelector('.rot-ic')?.classList.remove('spin'),260);renderRot(btns,c);addMsg('c',`<code>[↻]</code> ${b.modes[b.mi].label}`,null)}else{el.classList.toggle('active');addMsg('c',`<code>[${m.label.toLowerCase()}]</code>`,null)}lc=n});
+    c.appendChild(el);
+    if(i<btns.length-1&&i%2===1){const s=document.createElement('div');s.className='rsep';c.appendChild(s)}
+  });
+}
+
+/* ═══ PANE 2 ═════════════════════════════════════════ */
+const TT={cot:{icon:'layers',color:'var(--teal)',label:'CoT'},browser:{icon:'globe',color:'var(--accent)',label:'Browser'},doc:{icon:'file',color:'var(--amber)',label:'Doc'},chat:{icon:'chat',color:'var(--violet)',label:'Chat'},term:{icon:'term',color:'#4d4d4d',label:'Term'}};
+let p2T=[],p2A=null,p2P=false;
+function addTab(ty,ti){const id=++uid,t=TT[ty]||TT.doc;p2T.push({id,type:ty,title:ti||t.label,color:t.color,icon:t.icon});p2A=id;renderP2();return id}
+function rmTab(id){const i=p2T.findIndex(t=>t.id===id);if(i<0)return;p2T.splice(i,1);if(p2A===id)p2A=p2T.length?p2T[Math.min(i,p2T.length-1)].id:null;renderP2()}
+function renderP2(){
+  const b=$('p2-tabs');b.innerHTML='';
+  p2T.forEach(t=>{const el=document.createElement('div');el.className='p2t'+(t.id===p2A?' on':'');el.innerHTML=`<div class="p2t-i" style="background:${t.color};color:#fff">${svg(IC[t.icon],6)}</div><span class="p2t-n">${t.title}</span><button class="p2t-x" style="width:8px;height:8px"><svg class="ix" viewBox="0 0 24 24" style="width:6px;height:6px"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>`;
+  el.addEventListener('click',e=>{if(e.target.closest('.p2t-x')){rmTab(t.id);return}p2A=t.id;renderP2()});
+  el.draggable=true;el.addEventListener('dragstart',e=>{e.dataTransfer.setData('p2-tab',String(t.id));el.style.opacity='.4'});el.addEventListener('dragend',()=>el.style.opacity='');b.appendChild(el)});
+  const bd=$('p2-body');bd.innerHTML='';const a=p2T.find(t=>t.id===p2A);
+  if(!a){bd.innerHTML='<div style="padding:20px;color:var(--dim);font-family:var(--mono);font-size:8px;text-align:center">No tabs · click + to add</div>';return}
+  const p=document.createElement('div');p.className='p2p on';
+  if(a.type==='cot')p.innerHTML=mkCot();else if(a.type==='browser')p.innerHTML=`<div style="display:flex;flex-direction:column;height:100%"><div style="display:flex;padding:3px;border-bottom:1px solid var(--border);gap:3px;align-items:center"><span style="font-size:6px;color:var(--dim)">🔒</span><input class="mc-input" value="https://docs.gentlyos.dev" readonly style="flex:1"/></div><div class="p2c" style="padding:8px"><b style="color:var(--text-hi)">GentlyOS Docs</b>\n\nv14 — Secret Toolbar Powers\nDouble-click any toolbar blank area\nto unlock its hidden dimension.</div></div>`;
+  else if(a.type==='doc')p.innerHTML=`<div class="p2c"><b style="color:var(--text-hi)">${a.title}</b>\n\n<span style="color:var(--amber)">Document Block</span>\n\nEditable document. All tabs form 1 artifact.\nPin group to dock for contextualized chat.</div>`;
+  else if(a.type==='chat')p.innerHTML=`<div style="display:flex;flex-direction:column;height:100%"><div style="flex:1;overflow-y:auto;padding:5px;display:flex;flex-direction:column;gap:3px"><div class="m c" style="font-size:8px">Secondary chat — all docked contexts shared.</div><div class="m u" style="font-size:8px">Can you see all my tabs?</div><div class="m c" style="font-size:8px">Yes — pinned group gives me the full workspace.</div></div><div style="display:flex;padding:3px;border-top:1px solid var(--border);gap:3px"><input class="mc-input" placeholder="Chat here..." style="flex:1"/></div></div>`;
+  else p.innerHTML=`<div class="p2c" style="color:var(--green)"><b>deck@gentlyos ~/v14</b>\n$ cargo build --release\n   Compiling gentlyos-core v0.1.0\n   <span style="color:var(--green)">Finished</span> release\n\n$ gentlyos --compositor\nwlroots compositor: ready\nGuardDog DNS: active\nAppCage: 6 containers\n<span style="color:var(--teal)">█</span></div>`;
+  bd.appendChild(p);
+}
+function mkCot(){
+  const TI={origin:'◉',thought:'◆',artifact:'■',action:'▶'};
+  const nodes={id:'r',l:'Session',t:'origin',c:'var(--teal)',b:'v14',k:[{id:'c1',l:'Shell',t:'thought',c:'var(--accent)',b:'Toolbars',k:[{id:'a1',l:'v10.1',t:'artifact',c:'var(--amber)',b:'Dock',k:[]},{id:'a2',l:'v11',t:'artifact',c:'var(--amber)',b:'Semantic',k:[{id:'a3',l:'v12',t:'artifact',c:'var(--green)',b:'CoT tree',k:[{id:'a4',l:'v13',t:'artifact',c:'var(--green)',b:'Tabs',k:[{id:'a5',l:'v14',t:'artifact',c:'var(--green)',b:'Secrets',k:[]}]}]}]}]},{id:'c2',l:'AppCage',t:'thought',c:'var(--accent)',b:'Security',k:[{id:'a6',l:'GuardDog',t:'action',c:'var(--red)',b:'DNS',k:[]}]},{id:'c3',l:'Z3RO2Z',t:'action',c:'var(--red)',b:'Mining',k:[]}]};
+  function rn(n){let h=`<div class="ct-n"><div class="ct-c"><div class="ct-h"><div class="ct-ic" style="background:${n.c}">${TI[n.t]}</div><span class="ct-nm">${n.l}</span><span class="ct-ty" style="background:${n.c}22;color:${n.c}">${n.t}</span></div><div class="ct-bd">${n.b}</div></div>`;if(n.k.length){h+=`<div class="ct-ln"></div><div class="ct-br">${n.k.map(rn).join('')}</div>`}return h+'</div>'}
+  return `<div style="padding:6px">${rn(nodes)}</div>`;
+}
+// Tab menu
+const TM=['cot','browser','doc','chat','term'];let mO=false;
+$('p2-add').addEventListener('click',()=>{if(mO){document.querySelector('.p2m')?.remove();mO=false;return}const m=document.createElement('div');m.className='p2m';m.style.cssText='position:absolute;top:25px;right:35px;background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:2px;z-index:40;display:flex;flex-direction:column;gap:1px;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+TM.forEach(t=>{const tt=TT[t],b=document.createElement('button');b.style.cssText='display:flex;align-items:center;gap:4px;padding:3px 8px;border:none;background:transparent;color:var(--text);cursor:pointer;font-family:var(--mono);font-size:7px;border-radius:3px';b.innerHTML=`<span style="width:8px;height:8px;border-radius:2px;background:${tt.color};display:flex;align-items:center;justify-content:center">${svg(IC[tt.icon],5)}</span>${tt.label}`;b.onmouseenter=()=>b.style.background='var(--surface)';b.onmouseleave=()=>b.style.background='transparent';b.onclick=()=>{addTab(t);m.remove();mO=false};m.appendChild(b)});
+$('pane2').appendChild(m);mO=true;setTimeout(()=>{const cl=e=>{if(!m.contains(e.target)&&e.target!==$('p2-add')){m.remove();mO=false;document.removeEventListener('click',cl)}};document.addEventListener('click',cl)},10)});
+$('p2-pin').addEventListener('click',()=>{p2P=!p2P;$('p2-pin').classList.toggle('pinned',p2P);if(p2P&&p2T.length){const p={id:++uid,appId:'p2g',label:p2T.length+' tabs',color:'var(--violet)',isGrp:true};if(!dkPins.find(x=>x.appId==='p2g')){if(!dkPins.length)dkActive=p.id;dkPins.push(p);renderDock();addMsg('c',`<code>[📌]</code> Pinned <b>${p2T.length} tabs</b> as 1 artifact`,null)}}else{dkPins=dkPins.filter(p=>p.appId!=='p2g');renderDock()}});
+$('chat-coll').addEventListener('click',()=>{exp=!exp;if(exp){$('chat').classList.add('coll');$('dock').classList.add('coll');$('p2-exp').classList.add('p2ev')}else{$('chat').classList.remove('coll');$('chat').style.width=savedCW+'px';$('dock').classList.remove('coll');$('p2-exp').classList.remove('p2ev');renderDock()}});
+$('p2-exp').addEventListener('click',()=>{exp=false;$('chat').classList.remove('coll');$('chat').style.width=savedCW+'px';$('dock').classList.remove('coll');$('p2-exp').classList.remove('p2ev');renderDock()});
+
+/* ═══ DOCK ═══════════════════════════════════════════ */
+let dkPins=[],dkActive=null;
+function pinDk(aid){if(!aid||dkPins.find(p=>p.appId===aid))return;const a=APPS.find(x=>x.id===aid);if(!a)return;const p={id:++uid,appId:aid,label:a.name.split(' ')[0],color:a.color};if(!dkPins.length)dkActive=p.id;dkPins.push(p);renderDock();addMsg('c',`<code>[ctx+]</code> <b>${p.label}</b>`,aid)}
+function renderDock(){const it=$('dk-items');it.innerHTML='';dkPins.forEach(p=>{const el=document.createElement('div');el.className='dpin'+(p.isGrp?' grp':'')+(p.id===dkActive?' active':'');el.style.animation='dockPop .2s cubic-bezier(.34,1.56,.64,1)';const a=APPS.find(x=>x.id===p.appId);const ic=a?svg(IC[a.icon],9):p.isGrp?`<span style="font-size:7px">${p.label}</span>`:'●';el.innerHTML=`<div class="dpin-i" style="background:${p.color};color:#fff">${ic}</div><span class="dpin-n">${p.label}</span><div class="dpin-x">×</div>`;el.addEventListener('click',e=>{if(e.target.closest('.dpin-x')){dkPins=dkPins.filter(x=>x.id!==p.id);if(dkActive===p.id)dkActive=dkPins[0]?.id||null;renderDock();return}dkActive=p.id;renderDock()});it.appendChild(el)})}
+const dock=$('dock');
+dock.addEventListener('dragover',e=>{e.preventDefault();dock.classList.add('dov')});
+dock.addEventListener('dragleave',e=>{if(!dock.contains(e.relatedTarget))dock.classList.remove('dov')});
+dock.addEventListener('drop',e=>{e.preventDefault();dock.classList.remove('dov');const a=e.dataTransfer.getData('app-to-dock');if(a)pinDk(a)});
+let dkD=false,dkX,dkW,exp=false,savedCW=215;
+$('dock-e').addEventListener('mousedown',e=>{if(!exp){dkD=true;dkX=e.clientX;dkW=$('chat').offsetWidth;document.body.style.cursor='col-resize';e.preventDefault()}});
+document.addEventListener('mousemove',e=>{if(!dkD)return;$('chat').style.width=Math.max(100,Math.min(400,dkW+(e.clientX-dkX)))+'px'});
+document.addEventListener('mouseup',()=>{if(dkD){savedCW=$('chat').offsetWidth;dkD=false;document.body.style.cursor=''}});
+
+/* ═══════════════════════════════════════════════════════
+   ★★★ SECRET DOUBLE-CLICK HANDLERS ★★★
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── LEFT SECRET: Macro Builder ─────────────────────
+   Mini chat + glowing .md files for behavior/prompt defs
+   ──────────────────────────────────────────────────── */
+let macroFiles=[
+  {id:1,name:'system-prompt.md',type:'.md',glow:true,icon:'📝',content:'You are a precision engineering assistant...'},
+  {id:2,name:'cot-rules.md',type:'.md',glow:true,icon:'🧠',content:'Chain of thought: always show reasoning...'},
+  {id:3,name:'format-spec.md',type:'.md',glow:false,icon:'📄',content:'Use KDE Breeze styling for all outputs...'},
+  {id:4,name:'compile-macros.sh',type:'.sh',glow:false,icon:'⚙️',content:'#!/bin/bash\ncompile --target=all...'},
+];
+let macroMsgs=[
+  {from:'c',text:'Macro Builder ready. Create .md behavior files that define how I process each scope.'},
+  {from:'c',text:'Glowing files are <b>active</b> — they modify my behavior in this project.'},
+];
+
+function renderMacro(){
+  const b=$('macro-body');b.innerHTML='';
+  // Files grid
+  const grid=document.createElement('div');grid.className='macro-files';
+  macroFiles.forEach(f=>{
+    const el=document.createElement('div');el.className='macro-file'+(f.glow?' glow':'');
+    el.innerHTML=`<span class="mf-icon">${f.icon}</span><span class="mf-name">${f.name}</span><span class="mf-type">${f.type}</span>`;
+    el.addEventListener('click',()=>{f.glow=!f.glow;renderMacro();addMsg('c',`<code>[macro]</code> ${f.name} ${f.glow?'<span style="color:var(--teal)">activated ✦</span>':'deactivated'}`,null)});
+    grid.appendChild(el);
+  });
+  // Add button
+  const add=document.createElement('div');add.className='macro-file macro-add';
+  add.innerHTML='<span style="font-size:18px;color:var(--dim)">+</span><span class="mf-name">new file</span>';
+  add.addEventListener('click',()=>{const nm='macro-'+(macroFiles.length+1)+'.md';macroFiles.push({id:++uid,name:nm,type:'.md',glow:true,icon:'✨',content:''});renderMacro();addMsg('c',`<code>[macro+]</code> Created <b>${nm}</b> ✦`,null)});
+  grid.appendChild(add);b.appendChild(grid);
+  // Chat
+  const chat=document.createElement('div');chat.className='macro-chat';
+  const msgs=document.createElement('div');msgs.className='mc-msgs';
+  macroMsgs.forEach(m=>{const d=document.createElement('div');d.className='mc-m '+(m.from==='u'?'u':'c');d.innerHTML=m.text;msgs.appendChild(d)});
+  chat.appendChild(msgs);
+  const row=document.createElement('div');row.className='mc-in-row';
+  const inp=document.createElement('input');inp.className='mc-input';inp.placeholder='Define behavior, prompt, macro...';
+  const send=document.createElement('button');send.className='mc-send';send.textContent='SET';
+  send.addEventListener('click',()=>{if(!inp.value.trim())return;macroMsgs.push({from:'u',text:inp.value});macroMsgs.push({from:'c',text:'Saved to scope. Active .md files will apply this on next compile.'});inp.value='';renderMacro()});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')send.click()});
+  row.appendChild(inp);row.appendChild(send);chat.appendChild(row);b.appendChild(chat);
+  msgs.scrollTop=99999;
+}
+
+/* ─── MIDDLE SECRET: Asset Desktop ───────────────────
+   React /public style — resources in scope, not processing
+   ──────────────────────────────────────────────────── */
+let assets=[
+  {id:1,name:'logo.svg',type:'image',size:'4 KB',icon:'🖼️'},
+  {id:2,name:'breeze-dark.css',type:'style',size:'12 KB',icon:'🎨'},
+  {id:3,name:'architecture.png',type:'image',size:'340 KB',icon:'📐'},
+  {id:4,name:'kdf-spec.pdf',type:'doc',size:'89 KB',icon:'📄'},
+  {id:5,name:'cot-schema.json',type:'data',size:'2 KB',icon:'📊'},
+  {id:6,name:'wlroots-ref.md',type:'doc',size:'18 KB',icon:'📝'},
+  {id:7,name:'guarddog-rules.yaml',type:'config',size:'6 KB',icon:'🐕'},
+  {id:8,name:'sample-audio.ogg',type:'media',size:'1.2 MB',icon:'🔊'},
+];
+
+function renderAssets(){
+  const b=$('asset-body');b.innerHTML='';
+  const grid=document.createElement('div');grid.className='asset-grid';
+  assets.forEach(a=>{
+    const el=document.createElement('div');el.className='asset-item';el.draggable=true;
+    el.innerHTML=`<div class="asset-thumb"><span class="asset-thumb-icon">${a.icon}</span></div><span class="asset-name">${a.name}</span><span class="asset-size">${a.size}</span>`;
+    el.addEventListener('dragstart',e=>{e.dataTransfer.setData('asset',a.name);el.classList.add('dragging')});
+    el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+    el.addEventListener('click',()=>addMsg('c',`<code>[asset]</code> ${a.name} — ${a.size} — in scope, not processed`,null));
+    grid.appendChild(el);
+  });
+  // Drop zone
+  const drop=document.createElement('div');drop.className='asset-drop';
+  drop.innerHTML='<span style="font-size:14px">📂</span> Drop files here to add to project scope';
+  drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.borderColor='var(--amber)';drop.style.color='var(--amber)'});
+  drop.addEventListener('dragleave',()=>{drop.style.borderColor='';drop.style.color=''});
+  drop.addEventListener('drop',e=>{e.preventDefault();drop.style.borderColor='';drop.style.color='';assets.push({id:++uid,name:'dropped-file.dat',type:'unknown',size:'? KB',icon:'📎'});renderAssets();addMsg('c','<code>[asset+]</code> File added to scope',null)});
+  grid.appendChild(drop);b.appendChild(grid);
+}
+
+/* ─── RIGHT SECRET: Script Forge ─────────────────────
+   Build custom toolbar buttons via bash/scripting
+   Affects ALL pane2 work areas
+   ──────────────────────────────────────────────────── */
+let forgeButtons=[
+  {id:1,name:'Lint All',color:'var(--teal)',icon:'code',script:'#!/bin/bash\nfor tab in $(pane2 --list); do\n  lint --fix "$tab"\ndone'},
+  {id:2,name:'Screenshot',color:'var(--amber)',icon:'desktop',script:'pane2 --capture --all\ncp /tmp/screens/* /assets/'},
+  {id:3,name:'Deploy',color:'var(--green)',icon:'globe',script:'pane2 --compile --mode=release\nrsync -avz ./build/ remote:/deploy/'},
+];
+let forgeLog=['[forge] Ready. Build custom buttons that affect all pane2 tabs.','[forge] Scripts run in pane2 scope — access all tabs, modify all workspaces.'];
+
+function renderForge(){
+  const b=$('forge-body');b.innerHTML='';const ed=document.createElement('div');ed.className='forge-editor';
+  // Preview
+  const prev=document.createElement('div');prev.className='forge-preview';
+  forgeButtons.forEach(fb=>{
+    const el=document.createElement('div');el.className='forge-btn-preview';
+    el.innerHTML=`<span class="fb-dot" style="background:${fb.color}"></span>${fb.name}`;
+    el.addEventListener('click',()=>{forgeLog.push(`[run] ${fb.name}`);forgeLog.push(`[out] ${fb.script.split('\n')[0]}...`);renderForge();addMsg('c',`<code>[⚒️ forge]</code> Running <b>${fb.name}</b> across all pane2 tabs`,null)});
+    prev.appendChild(el);
+  });
+  ed.appendChild(prev);
+  // Code editor
+  const ta=document.createElement('textarea');ta.className='forge-code';ta.placeholder='#!/bin/bash\n# Custom button script\n# Runs across ALL pane2 tabs\npane2 --each "command"';
+  ta.value='#!/bin/bash\n# New custom button\npane2 --list | while read tab; do\n  echo "Processing $tab"\ndone';
+  ed.appendChild(ta);
+  // Actions
+  const acts=document.createElement('div');acts.className='forge-actions';
+  [{label:'Add Button',cls:'primary',fn:()=>{forgeButtons.push({id:++uid,name:'Custom '+(forgeButtons.length+1),color:'var(--violet)',icon:'wrench',script:ta.value});forgeLog.push('[forge] New button created');renderForge();renderRot(R_BTNS,$('r-body'));addMsg('c',`<code>[⚒️+]</code> New toolbar button forged`,null)}},
+   {label:'Test',cls:'',fn:()=>{forgeLog.push('[test] Simulating...');forgeLog.push('[test] '+ta.value.split('\n').filter(l=>l.trim()&&!l.startsWith('#'))[0]);renderForge()}},
+   {label:'Clear',cls:'',fn:()=>{ta.value='';}}
+  ].forEach(a=>{const btn=document.createElement('button');btn.className='forge-act'+( a.cls?' '+a.cls:'');btn.textContent=a.label;btn.onclick=a.fn;acts.appendChild(btn)});
+  ed.appendChild(acts);
+  // Log
+  const log=document.createElement('div');log.className='forge-log';
+  log.innerHTML=forgeLog.map(l=>`<div>${l}</div>`).join('');
+  ed.appendChild(log);b.appendChild(ed);log.scrollTop=99999;
+}
+
+/* ─── Secret activation via double-click on blank area ─ */
+let lDbl=0,rDbl=0,dDbl=0;
+$('rail-L').addEventListener('dblclick',e=>{
+  if(e.target.closest('.rot-btn')||e.target.closest('.tn-r')||e.target.closest('.rtog'))return;
+  openSecret('sec-macro');renderMacro();
+  addMsg('c','<code>[✦ secret]</code> Macro Builder unlocked — define .md behavior files that glow when active.',null);
+});
+$('dock').addEventListener('dblclick',e=>{
+  if(e.target.closest('.dpin')||e.target.closest('#dk-h'))return;
+  openSecret('sec-assets');renderAssets();
+  addMsg('c','<code>[✦ secret]</code> Asset Desktop — drag in resources. In scope but not processed. Like <code>/public</code>.',null);
+});
+$('rail-R').addEventListener('dblclick',e=>{
+  if(e.target.closest('.rot-btn')||e.target.closest('.rtog'))return;
+  openSecret('sec-forge');renderForge();
+  addMsg('c','<code>[✦ secret]</code> Script Forge — build custom toolbar buttons. Scripts affect ALL pane2 work areas.',null);
+});
+
+function openSecret(id){
+  document.querySelectorAll('.secret-overlay').forEach(o=>o.classList.remove('open'));
+  $(id).classList.add('open');
+}
+$('sec-macro-x').addEventListener('click',()=>$('sec-macro').classList.remove('open'));
+$('sec-assets-x').addEventListener('click',()=>$('sec-assets').classList.remove('open'));
+$('sec-forge-x').addEventListener('click',()=>$('sec-forge').classList.remove('open'));
+
+/* ═══ LEFT TREE ══════════════════════════════════════ */
+const NC={project:'#3ec9b0',thread:'#5e7ce2',artifact:'#d4a24e',fork:'#9b7aed',thought:'#d45a6e'};
+const NI={project:'●',thread:'◆',artifact:'■',fork:'⑂',thought:'◎'};
+const pTree={id:'p1',label:'GentlyOS Core',type:'project',expanded:true,children:[
+  {id:'t1',label:'Shell',type:'thread',expanded:true,children:[
+    {id:'a1',label:'v10.1 Dock',type:'artifact',children:[]},{id:'a2',label:'v11',type:'artifact',children:[]},{id:'a3',label:'v12 CoT',type:'artifact',children:[]},{id:'a4',label:'v13 Tabs',type:'artifact',children:[]},{id:'a5',label:'v14 Secrets',type:'artifact',children:[]},
+  ]},{id:'t2',label:'Wayland',type:'thread',expanded:false,children:[{id:'a6',label:'wlroots',type:'artifact',children:[]}]},
+  {id:'t3',label:'AppCage',type:'thread',expanded:false,children:[{id:'a7',label:'GuardDog',type:'artifact',children:[]}]},
+  {id:'a8',label:'Z3RO2Z',type:'artifact',children:[]},
+]};
+function renderTree(n,c,d=0){
+  const el=document.createElement('div'),hk=n.children?.length>0,io=n.expanded!==false;
+  const r=document.createElement('div');r.className='tn-r';
+  if(d>0){const i=document.createElement('span');i.className='tn-ind';i.style.width=(d*8)+'px';r.appendChild(i)}
+  const t=document.createElement('button');t.className='tn-t'+(hk?(io?' open':''):' leaf');t.textContent='▸';r.appendChild(t);
+  const ic=document.createElement('span');ic.className='tn-i';ic.style.background=NC[n.type]||'var(--dim)';ic.textContent=NI[n.type]||'●';r.appendChild(ic);
+  const lb=document.createElement('span');lb.className='tn-l';lb.textContent=n.label;r.appendChild(lb);
+  el.appendChild(r);
+  if(hk){const k=document.createElement('div');k.className='tn-c'+(io?'':' hid');k.style.maxHeight=io?'999px':'0';n.children.forEach(ch=>renderTree(ch,k,d+1));el.appendChild(k)}
+  r.addEventListener('click',e=>{if(e.target===t)return;document.querySelectorAll('.tn-r').forEach(x=>x.classList.remove('sel'));r.classList.add('sel')});
+  t.addEventListener('click',e=>{e.stopPropagation();if(!hk)return;n.expanded=!n.expanded;el.querySelector('.tn-c')?.classList.toggle('hid');t.classList.toggle('open')});
+  c.appendChild(el);
+}
+
+/* ═══ SHELF ══════════════════════════════════════════ */
+let shO=false,shM='feed';
+function togSh(m){if(shO&&shM===m)shO=false;else{shO=true;shM=m}$('shell').classList.toggle('shelf-open',shO);document.querySelectorAll('.sht').forEach(t=>t.classList.toggle('on',t.dataset.sh===shM));$('stf').classList.toggle('on',shO&&shM==='feed');$('sts').classList.toggle('on',shO&&shM==='search');if(shO)renderSh()}
+$('stf').addEventListener('click',()=>togSh('feed'));$('sts').addEventListener('click',()=>togSh('search'));
+$('sh-x').addEventListener('click',()=>{shO=false;$('shell').classList.remove('shelf-open');$('stf').classList.remove('on');$('sts').classList.remove('on')});
+document.querySelectorAll('.sht').forEach(t=>t.addEventListener('click',()=>{shM=t.dataset.sh;document.querySelectorAll('.sht').forEach(x=>x.classList.toggle('on',x===t));renderSh()}));
+const FD=[{u:'Claude',av:'C',ac:'var(--accent)',t:'1m',b:'v14 — Secret toolbar powers unlocked. Double-click blank areas.',p:'3 secrets · macro · assets · forge'},{u:'GentlyOS',av:'G',ac:'var(--teal)',t:'3m',b:'GuardDog blocked 14 telemetry requests.',p:'145 rules'},{u:'Z3RO2Z',av:'⛏',ac:'var(--amber)',t:'8m',b:'Block #881,248. 142.3 MH/s.',p:'dual 3090 Ti'}];
+const SD=[{c:'Shell · now',m:'<mark>Secret</mark> double-click powers on all 3 toolbars',x:'v14'},{c:'Shell · 14:40',m:'<mark>Rotating</mark> buttons with sub-modes',x:'v13'},{c:'AppCage',m:'<mark>GuardDog</mark> DNS filter',x:'v1.0'}];
+function renderSh(){const b=$('sh-body');b.innerHTML='';if(shM==='feed')FD.forEach(f=>{const e=document.createElement('div');e.className='fc';e.innerHTML=`<div class="fc-h"><div class="fc-av" style="background:${f.ac}">${f.av}</div><span class="fc-u">${f.u}</span><span class="fc-t">${f.t}</span></div><div class="fc-b">${f.b}</div><div class="fc-p">${f.p}</div>`;b.appendChild(e)});else SD.forEach(s=>{const e=document.createElement('div');e.className='sr';e.innerHTML=`<div class="sr-c">${s.c}</div><div class="sr-m">${s.m}</div>`;b.appendChild(e)})}
+
+/* ═══ APP DOCK ═══════════════════════════════════════ */
+function renderApps(){const c=$('app-dock');c.innerHTML='';APPS.forEach(a=>{const el=document.createElement('div');el.className='ai run';el.draggable=true;el.innerHTML=`<div class="ai-g" style="background:${a.color};color:#fff">${svg(IC[a.icon],11)}</div><span class="ai-n">${a.name.split(' ')[0]}</span><span class="ai-d" style="background:var(--green)"></span>`;el.addEventListener('click',()=>pinDk(a.id));el.addEventListener('dragstart',e=>{e.dataTransfer.setData('app-to-dock',a.id);el.style.opacity='.4'});el.addEventListener('dragend',()=>el.style.opacity='');c.appendChild(el)})}
+
+/* ═══ MESSAGES ═══════════════════════════════════════ */
+function addMsg(f,t,a){const ms=$('msgs'),d=document.createElement('div');d.className='m '+(f==='u'?'u':'c');let tg='';if(a){const ap=APPS.find(x=>x.id===a);if(ap)tg=`<div class="mtag" style="background:${ap.color}22;border:1px solid ${ap.color}44;color:${ap.color}">${ap.name}</div>`}d.innerHTML=t+tg;ms.appendChild(d);ms.scrollTop=99999}
+
+/* ═══ KEYBOARD ═══════════════════════════════════════ */
+let kbo=false;
+$('kbd-btn').addEventListener('click',()=>{kbo?ck():ok()});$('kbd-x').addEventListener('click',ck);
+function ok(){kbo=true;$('kbd-w').classList.add('open');$('kbd-btn').classList.add('on');setTimeout(()=>$('kbd-in').focus(),120)}
+function ck(){kbo=false;$('kbd-w').classList.remove('open');$('kbd-btn').classList.remove('on')}
+document.querySelectorAll('.k').forEach(k=>k.addEventListener('click',()=>{const t=k.textContent.trim();if(t==='SPACE')$('kbd-in').value+=' ';else if(t==='⌫')$('kbd-in').value=$('kbd-in').value.slice(0,-1);else if(t==='ENTER')si();else if(!['SH','123'].includes(t))$('kbd-in').value+=t;$('kbd-in').focus()}));
+$('kbd-in').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();si()}});$('kbd-go').addEventListener('click',si);
+function si(){const v=$('kbd-in').value.trim();if(!v)return;const p=dkPins.find(x=>x.id===dkActive);addMsg('u',v,p?.appId);$('kbd-in').value='';setTimeout(()=>addMsg('c','Received: <code>'+v+'</code>',p?.appId),300)}
+document.querySelectorAll('.ftab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.ftab').forEach(x=>x.classList.toggle('on',x===t));$('go-lb').textContent={chat:'SEND',term:'RUN',cot:'DROP',find:'FIND'}[t.dataset.f]||'SEND'}));
+document.querySelectorAll('.csh-m').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.csh-m').forEach(x=>x.classList.toggle('on',x===b))}));
+
+/* ═══ RAILS ══════════════════════════════════════════ */
+/* LEFT: 3 states — expanded (tree visible) → collapsed (icons only, 42px) → closed (0px, thin square reopen) */
+let lState='coll'; // 'exp','coll','closed'
+let rE=false;
+$('tL').addEventListener('click',()=>{
+  if(lState==='coll'){lState='exp'}else if(lState==='exp'){lState='coll'}
+  upRails();
+});
+$('l-close').addEventListener('click',e=>{e.stopPropagation();lState='closed';upRails()});
+$('l-reopen').addEventListener('click',()=>{lState='coll';upRails()});
+$('tR').addEventListener('click',()=>{rE=!rE;upRails()});
+function upRails(){
+  const s=$('shell'),rL=$('rail-L');
+  s.classList.remove('l-exp','l-closed');rL.classList.remove('exp','closed');
+  $('tL').classList.remove('on');$('l-reopen').classList.remove('vis');
+  if(lState==='exp'){s.classList.add('l-exp');rL.classList.add('exp');$('tL').classList.add('on')}
+  else if(lState==='closed'){s.classList.add('l-closed');rL.classList.add('closed');$('l-reopen').classList.add('vis')}
+  // Right rail
+  s.classList.toggle('r-exp',rE);$('rail-R').classList.toggle('exp',rE);$('tR').classList.toggle('on',rE);
+}
+
+/* ═══ CLOCK ══════════════════════════════════════════ */
+function tick(){$('clock').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})}tick();setInterval(tick,1000);
+
+/* ═══ BOOT ═══════════════════════════════════════════ */
+(function(){
+  $('tree-root').innerHTML='';renderTree(pTree,$('tree-root'),0);
+  renderRot(L_BTNS,$('l-btns'));
+  renderRot(R_BTNS,$('r-body'));
+  addTab('cot','Chain of Thought');addTab('browser','Docs');addTab('doc','Spec Notes');addTab('chat','Chat #2');addTab('term','Terminal');
+  p2A=p2T[0].id;renderP2();
+  renderApps();pinDk('kde');pinDk('konsole');
+  addMsg('c','<b>v14.1 — File Tree + Secret Powers</b>\n\n<b>⬅ LEFT RAIL</b> = Windows-style file tree. Click ▸ to expand, click ✕ to close entirely. Thin square ▸ appears at edge to reopen.\n\n<b>✦ LEFT</b> dbl-click blank → <b>Macro Builder</b> — .md glow files + behavior chat.\n<b>✦ DOCK</b> dbl-click blank → <b>Asset Desktop</b> — in-scope resources, <code>/public</code> folder.\n<b>✦ RIGHT</b> dbl-click blank → <b>Script Forge</b> — custom toolbar buttons via bash.\n\n<span style="color:var(--dim)">All scrollbars removed. Clean edges.</span>',null);
+})();
+</script>
+</body>
+</html>

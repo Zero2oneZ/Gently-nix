@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gently Dev Workbench</title>
+<style>
+/*
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  APP-IN-APP ARCHITECTURE                                    ║
+  ║                                                              ║
+  ║  OUTER = This file (dev workbench)                          ║
+  ║  INNER = Gently shell (running in iframe / BrowserView)     ║
+  ║                                                              ║
+  ║  ┌──────────────────────────────────────────────────────┐   ║
+  ║  │ OUTER: Dev Workbench                                  │   ║
+  ║  │ ┌────────────────────┬───────────────────────────┐   │   ║
+  ║  │ │                    │                            │   │   ║
+  ║  │ │   INNER:           │   EDITOR:                  │   │   ║
+  ║  │ │   Live Preview     │   Monaco / Code            │   │   ║
+  ║  │ │   (iframe)         │   (edits the inner)        │   │   ║
+  ║  │ │                    │                            │   │   ║
+  ║  │ │   Gently Shell     │   shell.html               │   │   ║
+  ║  │ │   running live     │   main.js                  │   │   ║
+  ║  │ │                    │   styles                   │   │   ║
+  ║  │ │                    │                            │   │   ║
+  ║  │ └────────────────────┴───────────────────────────┘   │   ║
+  ║  │ [status bar: file · cursor · hot reload indicator]   │   ║
+  ║  └──────────────────────────────────────────────────────┘   ║
+  ║                                                              ║
+  ║  IN ELECTRON:                                                ║
+  ║  • Outer = BrowserWindow (this workbench)                   ║
+  ║  • Inner = BrowserView (live Gently shell)                  ║
+  ║  • Editor = BrowserView (Monaco / embedded VS Code)         ║
+  ║  • File ops = main process (read/write real files)          ║
+  ║  • Hot reload = webContents.reload() on save                ║
+  ║                                                              ║
+  ║  GENERALIZED PATTERN:                                        ║
+  ║  Any app can be the inner. Gently editing Gently is just    ║
+  ║  one case. Could be: Gently editing a React app, Gently     ║
+  ║  editing a game, Gently editing another tool.               ║
+  ╚══════════════════════════════════════════════════════════════╝
+*/
+
+:root {
+  --bg:         #0d1117;
+  --bg-sidebar: #010409;
+  --bg-editor:  #0d1117;
+  --bg-tab:     #161b22;
+  --bg-tab-act: #0d1117;
+  --bg-status:  #0a0e14;
+  --border:     #21262d;
+  --text:       #c9d1d9;
+  --muted:      #8b949e;
+  --dim:        #484f58;
+  --accent:     #00e5a0;
+  --blue:       #58a6ff;
+  --purple:     #bc8cff;
+  --orange:     #d29922;
+  --red:        #ff7b72;
+  --green:      #7ee787;
+  --font:       'SF Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ═══ MASTER LAYOUT ═══ */
+.workbench {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  grid-template-rows: 1fr 22px;
+  height: 100vh;
+}
+
+/* ═══ ACTIVITY BAR (far left, VS Code style) ═══ */
+.activity-bar {
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 2px;
+}
+
+.act-btn {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; border-radius: 4px;
+  font-size: 16px; color: var(--dim);
+  transition: all 120ms;
+  position: relative;
+}
+.act-btn:hover { color: var(--text); }
+.act-btn.active { color: var(--text); }
+.act-btn.active::before {
+  content: ''; position: absolute;
+  left: 0; top: 6px; bottom: 6px; width: 2px;
+  background: var(--accent); border-radius: 1px;
+}
+
+.act-spacer { flex: 1; }
+
+/* ═══ MAIN AREA ═══ */
+.main-area {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ═══ TOP BAR ═══ */
+.top-bar {
+  display: flex;
+  align-items: center;
+  background: var(--bg-tab);
+  border-bottom: 1px solid var(--border);
+  min-height: 32px;
+  padding: 0 8px;
+  gap: 4px;
+  -webkit-app-region: drag;
+}
+
+.top-title {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  margin-right: auto;
+  -webkit-app-region: no-drag;
+}
+
+.top-btn {
+  padding: 3px 10px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--dim);
+  background: transparent;
+  transition: all 150ms;
+  -webkit-app-region: no-drag;
+}
+.top-btn:hover { color: var(--text); border-color: var(--muted); }
+.top-btn.active { color: var(--accent); border-color: var(--accent); }
+
+/* ═══ SPLIT VIEW ═══ */
+.split-view {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Preview side */
+.preview-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  position: relative;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  height: 28px;
+  background: var(--bg-tab);
+  border-bottom: 1px solid var(--border);
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.preview-dot { width: 7px; height: 7px; border-radius: 50%; }
+.preview-label { font-size: 8px; letter-spacing: 1.5px; color: var(--dim); }
+.preview-url {
+  flex: 1; text-align: center;
+  font-size: 9px; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 3px; padding: 2px 10px;
+}
+.preview-reload {
+  cursor: pointer; font-size: 12px; color: var(--dim);
+  transition: color 150ms;
+}
+.preview-reload:hover { color: var(--accent); }
+
+.preview-frame {
+  flex: 1;
+  border: none;
+  background: #08080c;
+}
+
+/* Resize handle between preview and editor */
+.split-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: var(--border);
+  transition: background 200ms;
+  flex-shrink: 0;
+  position: relative;
+}
+.split-handle:hover { background: var(--accent); }
+.split-handle.dragging { background: var(--accent); }
+
+/* Editor side */
+.editor-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 300px;
+}
+
+/* Editor tabs */
+.editor-tabs {
+  display: flex;
+  align-items: center;
+  background: var(--bg-tab);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.ed-tab {
+  padding: 6px 14px;
+  font-size: 10px;
+  cursor: pointer;
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 120ms;
+}
+.ed-tab:hover { color: var(--text); }
+.ed-tab.active {
+  background: var(--bg-editor);
+  color: var(--text);
+  border-bottom: 1px solid var(--bg-editor);
+  margin-bottom: -1px;
+}
+
+.ed-tab-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+}
+.ed-tab-close {
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 100ms;
+  cursor: pointer;
+}
+.ed-tab:hover .ed-tab-close { opacity: 0.5; }
+.ed-tab-close:hover { opacity: 1 !important; }
+
+/* Breadcrumb */
+.editor-breadcrumb {
+  display: flex;
+  align-items: center;
+  padding: 2px 12px;
+  background: var(--bg-editor);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  font-size: 9px;
+  color: var(--dim);
+  gap: 4px;
+  flex-shrink: 0;
+}
+.bread-sep { color: var(--dim); opacity: 0.3; }
+
+/* Code editor */
+.editor-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.code-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+/* Line numbers */
+.line-numbers {
+  width: 48px;
+  padding: 8px 0;
+  text-align: right;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--dim);
+  background: var(--bg-editor);
+  border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  overflow: hidden;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.line-num { padding-right: 12px; }
+.line-num.active { color: var(--text); }
+
+/* Code textarea */
+.code-textarea {
+  flex: 1;
+  background: var(--bg-editor);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 8px 12px;
+  border: none;
+  outline: none;
+  resize: none;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  caret-color: var(--accent);
+}
+
+/* Minimap placeholder */
+.minimap {
+  width: 60px;
+  background: var(--bg-editor);
+  border-left: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+}
+.minimap-content {
+  position: absolute;
+  top: 0; left: 4px; right: 4px;
+  font-size: 1.5px;
+  line-height: 2px;
+  color: color-mix(in srgb, var(--text) 20%, transparent);
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: none;
+}
+
+.minimap-viewport {
+  position: absolute;
+  left: 0; right: 0;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  pointer-events: none;
+}
+
+/* ═══ STATUS BAR ═══ */
+.status-bar {
+  grid-column: 1 / -1;
+  background: var(--bg-status);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 10px;
+  gap: 12px;
+}
+
+.status-item { color: var(--muted); display: flex; align-items: center; gap: 4px; }
+.status-accent { color: var(--accent); }
+.status-spacer { flex: 1; }
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.status-dot.live { background: var(--accent); }
+.status-dot.stale { background: var(--orange); }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+</style>
+</head>
+<body>
+
+<div class="workbench">
+  <!-- ═══ ACTIVITY BAR ═══ -->
+  <div class="activity-bar">
+    <div class="act-btn active" title="Explorer" onclick="setActivity('files')">📁</div>
+    <div class="act-btn" title="Search" onclick="setActivity('search')">🔍</div>
+    <div class="act-btn" title="Git" onclick="setActivity('git')">⑂</div>
+    <div class="act-btn" title="Gently" onclick="setActivity('gently')">◆</div>
+    <div class="act-spacer"></div>
+    <div class="act-btn" title="Settings">⚙</div>
+  </div>
+
+  <!-- ═══ MAIN ═══ -->
+  <div class="main-area">
+    <!-- Top bar -->
+    <div class="top-bar">
+      <span class="top-title">GENTLY DEV WORKBENCH</span>
+      <button class="top-btn" id="layout-split" onclick="setLayout('split')">◧ Split</button>
+      <button class="top-btn" id="layout-preview" onclick="setLayout('preview')">□ Preview</button>
+      <button class="top-btn" id="layout-editor" onclick="setLayout('editor')">▤ Editor</button>
+      <button class="top-btn active" id="hot-reload-btn" onclick="toggleHotReload()">⚡ Hot Reload</button>
+    </div>
+
+    <!-- Split view -->
+    <div class="split-view" id="split-view">
+      <!-- PREVIEW (inner app) -->
+      <div class="preview-pane" id="preview-pane">
+        <div class="preview-header">
+          <div class="preview-dot" style="background:var(--accent)"></div>
+          <span class="preview-label">LIVE PREVIEW</span>
+          <span class="preview-url" id="preview-url">gently://shell</span>
+          <span class="preview-reload" onclick="reloadPreview()" title="Reload">↻</span>
+        </div>
+        <iframe class="preview-frame" id="preview-frame" sandbox="allow-scripts allow-same-origin"></iframe>
+      </div>
+
+      <!-- RESIZE HANDLE -->
+      <div class="split-handle" id="split-handle"></div>
+
+      <!-- EDITOR -->
+      <div class="editor-pane" id="editor-pane">
+        <div class="editor-tabs" id="editor-tabs">
+          <div class="ed-tab active" data-file="shell.html" onclick="openFile('shell.html')">
+            <span class="ed-tab-dot" style="background:var(--orange)"></span>
+            shell.html
+            <span class="ed-tab-close">×</span>
+          </div>
+          <div class="ed-tab" data-file="main.js" onclick="openFile('main.js')">
+            <span class="ed-tab-dot" style="background:var(--orange)"></span>
+            main.js
+            <span class="ed-tab-close">×</span>
+          </div>
+          <div class="ed-tab" data-file="styles" onclick="openFile('styles')">
+            <span class="ed-tab-dot" style="background:var(--blue)"></span>
+            styles
+            <span class="ed-tab-close">×</span>
+          </div>
+          <div class="ed-tab" data-file="preload.js" onclick="openFile('preload.js')">
+            <span class="ed-tab-dot" style="background:var(--orange)"></span>
+            preload.js
+            <span class="ed-tab-close">×</span>
+          </div>
+        </div>
+
+        <div class="editor-breadcrumb">
+          <span>gently-os</span>
+          <span class="bread-sep">›</span>
+          <span>app</span>
+          <span class="bread-sep">›</span>
+          <span id="bread-file" style="color:var(--text)">shell.html</span>
+        </div>
+
+        <div class="editor-body">
+          <div class="code-container">
+            <div class="line-numbers" id="line-numbers"></div>
+            <textarea class="code-textarea" id="code-editor" spellcheck="false"></textarea>
+            <div class="minimap">
+              <div class="minimap-content" id="minimap-content"></div>
+              <div class="minimap-viewport" id="minimap-viewport" style="top:0;height:40px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STATUS BAR ═══ -->
+  <div class="status-bar">
+    <span class="status-item">
+      <span class="status-dot live" id="status-dot"></span>
+      <span id="status-sync">Live</span>
+    </span>
+    <span class="status-item status-accent">◆ Gently v0.1.0</span>
+    <span class="status-item" id="status-file">shell.html</span>
+    <span class="status-spacer"></span>
+    <span class="status-item" id="status-cursor">Ln 1, Col 1</span>
+    <span class="status-item">UTF-8</span>
+    <span class="status-item" id="status-lang">HTML</span>
+    <span class="status-item">Spaces: 2</span>
+  </div>
+</div>
+
+<script>
+/*
+  ═══════════════════════════════════════════════════════
+  FILE SYSTEM (mock — in Electron these are real files)
+  ═══════════════════════════════════════════════════════
+
+  In the real Electron build:
+  - fs.readFileSync reads actual files from ~/app/
+  - fs.writeFileSync saves changes
+  - chokidar watches for external changes
+  - webContents.reload() hot-reloads the preview
+
+  Here we simulate with in-memory strings.
+*/
+
+const files = {};
+
+// The actual Gently shell source — EDITABLE
+files['shell.html'] = `<!DOCTYPE html>
+<html><head><style>
+:root {
+  --bg: #08080c;
+  --shelf: #0c0c12;
+  --panel: #0e0e16;
+  --surface: #12121c;
+  --border: #1a1a2e;
+  --text: #e0e0e8;
+  --muted: #9999aa;
+  --dim: #666680;
+  --accent: #00e5a0;
+  --process: #4d9fff;
+  --shelf-w: 220px;
+  --bottom-h: 200px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'SF Mono',monospace; height:100vh; overflow:hidden; }
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--shelf-w) 1fr 1fr var(--shelf-w);
+  grid-template-rows: 28px 32px 1fr 30px var(--bottom-h);
+  height: 100vh;
+}
+
+/* Constants bar */
+.const-bar {
+  grid-column: 1/-1;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 10px; gap: 6px;
+  font-size: 8px; color: var(--dim);
+}
+.chip { padding:2px 8px; background:var(--surface); border:1px solid var(--border); border-radius:3px; }
+.chip b { color:var(--text); }
+.chip i { color:var(--dim); font-style:normal; }
+
+/* Shelves */
+.lshelf {
+  grid-row: 2/-1;
+  background: var(--shelf); border-right: 1px solid var(--border);
+  padding: 6px;
+}
+.rshelf {
+  grid-row: 2/-1; grid-column: 4;
+  background: var(--shelf); border-left: 1px solid var(--border);
+  padding: 6px;
+}
+.sh { font-size:7px; letter-spacing:2px; color:#333; padding:4px; border-bottom:1px solid var(--border); margin-bottom:4px; }
+
+.clan {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 8px; border-radius:3px; cursor:pointer;
+  font-size:10px; color:var(--muted); margin:1px 0;
+}
+.clan:hover { background:var(--surface); color:var(--text); }
+.clan.on { background:color-mix(in srgb, var(--accent) 8%, var(--bg)); color:var(--accent); }
+.dot { width:6px; height:6px; border-radius:50%; }
+.meta { font-size:7px; color:var(--dim); margin-left:auto; }
+
+/* Tab bars */
+.tabs {
+  background:var(--panel); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; padding:0 6px;
+}
+.tab { padding:4px 10px; font-size:8px; color:var(--dim); cursor:pointer; }
+.tab.on { color:var(--text); background:var(--surface); border-radius:3px 3px 0 0; }
+.ind { margin-left:auto; width:8px; height:8px; border-radius:50%; border:1.5px solid; }
+
+/* Panes */
+.pane {
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  font-size: 10px; color: var(--dim);
+}
+.pane-a { border-right: 1px solid var(--border); }
+
+.msg { padding:8px 12px; border-radius:6px; max-width:85%; font-size:10px; line-height:1.5; margin:3px 0; }
+.msg.u { background:var(--surface); border:1px solid var(--border); color:var(--muted); align-self:flex-end; }
+.msg.c { background:var(--surface); color:var(--text); align-self:flex-start; }
+.chat { width:80%; max-width:380px; display:flex; flex-direction:column; gap:4px; }
+.stmp { font-size:7px; color:var(--accent); opacity:0.5; }
+
+/* Stamp bar */
+.stamp-bar {
+  grid-column: 2/4;
+  background: var(--panel); border-top: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 10px;
+  font-size: 8px; color: var(--accent);
+}
+
+/* Bottom */
+.bottom {
+  grid-column: 2/4;
+  background: var(--panel); border-top: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.bhead {
+  display:flex; align-items:center; gap:3px; padding:4px 6px;
+  border-bottom:1px solid var(--border); font-size:7px;
+}
+.zbtn { padding:3px 8px; border:1px solid var(--border); border-radius:3px; color:var(--dim); cursor:pointer; letter-spacing:1px; }
+.zbtn.on { border-color:var(--accent); color:var(--accent); }
+.keys { flex:1; display:flex; flex-direction:column; gap:3px; justify-content:center; padding:6px; }
+.kr { display:flex; gap:3px; justify-content:center; }
+.k {
+  height:28px; min-width:28px; padding:0 5px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; border-radius:3px; cursor:pointer;
+  border:1px solid var(--border); background:var(--surface);
+}
+.k:hover { background:var(--surface); filter:brightness(1.3); }
+.k.g { font-size:9px; min-width:40px; font-weight:600; }
+.k.g.yes { color:var(--accent); border-color:color-mix(in srgb,var(--accent) 30%,var(--border)); }
+.k.g.open { color:var(--dim); }
+.k.act { font-size:8px; min-width:50px; color:var(--muted); }
+.k.sp { flex:1; max-width:250px; }
+</style></head>
+<body>
+<div class="shell">
+  <div class="const-bar">
+    <span class="chip"><span style="color:var(--accent);opacity:0.5">const/</span> <b>Blue Channel</b> <i>"carrier verified"</i></span>
+    <span class="chip"><span style="color:var(--accent);opacity:0.5">const/</span> <b>JPEG</b> <i>"75% chroma lost"</i></span>
+  </div>
+
+  <div class="lshelf">
+    <div class="sh">CLANS</div>
+    <div class="clan on"><div class="dot" style="background:var(--accent)"></div> Encoding Strategy <span class="meta">d=4</span></div>
+    <div class="clan"><div class="dot" style="background:#c77dff"></div> Channel Capacity <span class="meta">d=3</span></div>
+    <div class="clan"><div class="dot" style="background:#ffd93d"></div> Error Correction <span class="meta">d=1</span></div>
+    <div class="sh" style="margin-top:8px;opacity:0.4">FROZEN</div>
+    <div class="clan" style="opacity:0.3"><div class="dot" style="background:#88ccff"></div> Blue Channel ❄</div>
+  </div>
+
+  <div class="tabs"><div class="tab on">Encoding Strategy</div><div class="ind" style="border-color:var(--accent);background:var(--accent);margin-left:auto"></div></div>
+  <div class="tabs"><div class="tab on">Channel Capacity</div><div class="ind" style="border-color:var(--process);margin-left:auto"></div></div>
+
+  <div class="pane pane-a">
+    <div class="chat">
+      <div class="msg u"><div class="stmp">[OLO|🌿encoding|📍4|#a3f2]</div>How does freq encoding survive JPEG?</div>
+      <div class="msg c">Mid-frequency DCT coefficients (4-12) are least affected by quantization.</div>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="chat">
+      <div class="msg u"><div class="stmp">[OLO|🌿capacity|📍3|#7b1e]</div>Bit capacity per 1024×1024?</div>
+      <div class="msg c">~147K bits theoretical → ~240 reliable bits after ECC.</div>
+    </div>
+  </div>
+
+  <div class="rshelf">
+    <div class="sh">ARTIFACTS</div>
+    <div class="clan" style="border-left:2px solid var(--accent)"><span>⚙</span> Blue: "verified" <span class="meta">d=8</span></div>
+    <div class="clan" style="border-left:2px solid #ffd93d"><span>📎</span> freq_encoder.rs <span class="meta">→A</span></div>
+  </div>
+
+  <div class="stamp-bar">[OLO|🌿clan/encoding|📍4|⚡OPEN|🔒A●B●C●D●E◐F●G○|#a3f2|⏱0201]</div>
+
+  <div class="bottom">
+    <div class="bhead">
+      <span class="zbtn on">⌨ KB</span>
+      <span class="zbtn">📦 ART</span>
+      <span class="zbtn">⚙ TERM</span>
+      <span style="flex:1"></span>
+      <span class="zbtn" style="border-color:var(--accent);color:var(--accent)">A FOCUS</span>
+      <span class="zbtn" style="color:var(--process);opacity:0.4">B PROC</span>
+    </div>
+    <div class="keys">
+      <div class="kr">
+        <div class="k g yes">A●</div><div class="k g yes">B●</div><div class="k g yes">C●</div>
+        <div class="k g yes">D●</div><div class="k g open">E◐</div><div class="k g yes">F●</div><div class="k g open">G○</div>
+        <div style="width:10px"></div>
+        <div class="k act" style="border-color:var(--accent);color:var(--accent)">⚡OPEN</div>
+        <div class="k act">⚡GATE</div>
+        <div class="k act">⚡DONE</div>
+      </div>
+      <div class="kr"><div class="k">q</div><div class="k">w</div><div class="k">e</div><div class="k">r</div><div class="k">t</div><div class="k">y</div><div class="k">u</div><div class="k">i</div><div class="k">o</div><div class="k">p</div></div>
+      <div class="kr"><div class="k">a</div><div class="k">s</div><div class="k">d</div><div class="k">f</div><div class="k">g</div><div class="k">h</div><div class="k">j</div><div class="k">k</div><div class="k">l</div></div>
+      <div class="kr"><div class="k">z</div><div class="k">x</div><div class="k">c</div><div class="k">v</div><div class="k">b</div><div class="k">n</div><div class="k">m</div></div>
+      <div class="kr">
+        <div class="k act">◆ SAVE</div><div class="k act">🌿 FORK</div>
+        <div class="k act" style="border-color:#ffd93d;color:#ffd93d">⭐ COLLAPSE</div>
+        <div class="k act" style="border-color:var(--accent);color:var(--accent)">A</div>
+        <div class="k sp"></div>
+        <div class="k act" style="border-color:var(--process);color:var(--process);opacity:0.4">B</div>
+        <div class="k act" style="border-color:#c77dff;color:#c77dff">⚙ CODE</div>
+        <div class="k act">📌 PIN</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>`;
+
+files['main.js'] = `// main.js — Electron main process
+// In dev workbench: outer shell manages preview + editor
+// In production: this IS the shell
+
+const { app, BrowserWindow, BrowserView, ipcMain } = require('electron');
+const path = require('path');
+const fs = require('fs');
+
+let mainWindow = null;
+let previewView = null;
+let editorView = null;
+
+app.whenReady().then(() => {
+  mainWindow = new BrowserWindow({
+    width: 1920, height: 1080,
+    frame: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+    },
+  });
+
+  // Dev mode: load workbench
+  if (process.env.GENTLY_DEV) {
+    mainWindow.loadFile('dev-workbench.html');
+  } else {
+    mainWindow.loadFile('shell.html');
+  }
+
+  mainWindow.maximize();
+});
+
+// Hot reload: watch files and reload preview
+if (process.env.GENTLY_DEV) {
+  const chokidar = require('chokidar');
+  chokidar.watch('./app/**/*.{html,css,js}').on('change', (path) => {
+    console.log('File changed:', path);
+    if (previewView) {
+      previewView.webContents.reload();
+    }
+  });
+}
+
+app.on('window-all-closed', () => app.quit());`;
+
+files['styles'] = `/* ═══ GENTLY DESIGN TOKENS ═══
+   Edit these to change the entire look.
+   Preview updates live in the workbench.
+*/
+
+:root {
+  /* Void → Surface gradient (5 steps) */
+  --bg-void:      #08080c;
+  --bg-shelf:     #0c0c12;
+  --bg-panel:     #0e0e16;
+  --bg-surface:   #12121c;
+  --bg-elevated:  #18182a;
+
+  /* Text hierarchy */
+  --text:         #e0e0e8;   /* Primary */
+  --muted:        #9999aa;   /* Secondary */
+  --dim:          #666680;   /* Tertiary */
+  --vdim:         #333348;   /* Labels/dividers */
+
+  /* Semantic accents */
+  --accent:       #00e5a0;   /* Focus, active, success */
+  --process:      #4d9fff;   /* Process pane, info */
+  --warn:         #ffd93d;   /* Half-gates, staged */
+  --dead:         #ff4444;   /* Closed gates, errors */
+  --frozen:       #88ccff;   /* Frozen clans */
+  --code:         #c77dff;   /* Code actions */
+
+  /* Layout (px) */
+  --shelf-w:      220px;
+  --bottom-h:     200px;
+  --stamp-h:      30px;
+  --const-h:      28px;
+  --tab-h:        32px;
+
+  /* Typography */
+  --font-mono:    'SF Mono', 'JetBrains Mono', monospace;
+  --font-ui:      'Inter', system-ui, sans-serif;
+}`;
+
+files['preload.js'] = `const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('gently', {
+  // Setup
+  isFirstBoot: () => ipcRenderer.invoke('is-first-boot'),
+  getSSHPubKey: () => ipcRenderer.invoke('get-ssh-pubkey'),
+  completeSetup: (data) => ipcRenderer.invoke('complete-setup', data),
+
+  // Projects
+  createProject: (data) => ipcRenderer.invoke('create-project', data),
+  addClan: (data) => ipcRenderer.invoke('add-clan', data),
+  collapse: (data) => ipcRenderer.invoke('collapse', data),
+
+  // Dev workbench
+  readFile: (path) => ipcRenderer.invoke('read-file', { path }),
+  writeFile: (path, content) => ipcRenderer.invoke('write-file', { path, content }),
+  reloadPreview: () => ipcRenderer.invoke('reload-preview'),
+});`;
+
+
+/*
+  ═══════════════════════════════════════
+  STATE
+  ═══════════════════════════════════════
+*/
+let currentFile = 'shell.html';
+let hotReload = true;
+let reloadTimer = null;
+
+/*
+  ═══════════════════════════════════════
+  EDITOR
+  ═══════════════════════════════════════
+*/
+const editor = document.getElementById('code-editor');
+const lineNums = document.getElementById('line-numbers');
+const minimapContent = document.getElementById('minimap-content');
+const minimapViewport = document.getElementById('minimap-viewport');
+
+function openFile(name) {
+  currentFile = name;
+
+  // Update tabs
+  document.querySelectorAll('.ed-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.file === name);
+  });
+
+  // Update breadcrumb
+  document.getElementById('bread-file').textContent = name;
+
+  // Load content
+  editor.value = files[name] || '';
+  updateLineNumbers();
+  updateMinimap();
+
+  // Update status
+  document.getElementById('status-file').textContent = name;
+  const langs = { 'shell.html': 'HTML', 'main.js': 'JavaScript', 'styles': 'CSS', 'preload.js': 'JavaScript' };
+  document.getElementById('status-lang').textContent = langs[name] || 'Text';
+}
+
+function updateLineNumbers() {
+  const lines = editor.value.split('\n').length;
+  let html = '';
+  for (let i = 1; i <= lines; i++) {
+    html += `<div class="line-num">${i}</div>`;
+  }
+  lineNums.innerHTML = html;
+}
+
+function updateMinimap() {
+  minimapContent.textContent = editor.value;
+}
+
+function updateCursor() {
+  const val = editor.value.substring(0, editor.selectionStart);
+  const line = val.split('\n').length;
+  const col = val.split('\n').pop().length + 1;
+  document.getElementById('status-cursor').textContent = `Ln ${line}, Col ${col}`;
+}
+
+// Editor events
+editor.addEventListener('input', () => {
+  files[currentFile] = editor.value;
+  updateLineNumbers();
+  updateMinimap();
+
+  if (hotReload) {
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(applyToPreview, 400);
+    document.getElementById('status-dot').className = 'status-dot stale';
+    document.getElementById('status-sync').textContent = 'Pending...';
+  }
+});
+
+editor.addEventListener('click', updateCursor);
+editor.addEventListener('keyup', updateCursor);
+
+editor.addEventListener('scroll', () => {
+  lineNums.scrollTop = editor.scrollTop;
+
+  // Update minimap viewport
+  const ratio = editor.scrollTop / (editor.scrollHeight - editor.clientHeight || 1);
+  const vpH = Math.max(20, (editor.clientHeight / editor.scrollHeight) * minimapContent.offsetHeight);
+  const vpTop = ratio * (minimapContent.offsetHeight - vpH);
+  minimapViewport.style.top = vpTop + 'px';
+  minimapViewport.style.height = vpH + 'px';
+});
+
+// Tab handling in textarea
+editor.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+    editor.selectionStart = editor.selectionEnd = start + 2;
+    editor.dispatchEvent(new Event('input'));
+  }
+
+  // Ctrl+S = force save + reload
+  if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    files[currentFile] = editor.value;
+    applyToPreview();
+  }
+});
+
+/*
+  ═══════════════════════════════════════
+  PREVIEW
+  ═══════════════════════════════════════
+*/
+function applyToPreview() {
+  const frame = document.getElementById('preview-frame');
+
+  if (currentFile === 'shell.html' || currentFile === 'styles') {
+    // For HTML and CSS: rebuild the full document
+    let html = files['shell.html'];
+
+    // If editing styles, inject them into the shell
+    if (files['styles'] && files['shell.html'].includes('</style>')) {
+      // Append token overrides
+      html = html.replace('</style>', `\n/* === DESIGN TOKENS === */\n${files['styles']}\n</style>`);
+    }
+
+    frame.srcdoc = html;
+  }
+
+  document.getElementById('status-dot').className = 'status-dot live';
+  document.getElementById('status-sync').textContent = 'Live';
+}
+
+function reloadPreview() {
+  applyToPreview();
+}
+
+/*
+  ═══════════════════════════════════════
+  LAYOUT MODES
+  ═══════════════════════════════════════
+*/
+function setLayout(mode) {
+  const preview = document.getElementById('preview-pane');
+  const editorPane = document.getElementById('editor-pane');
+  const handle = document.getElementById('split-handle');
+
+  document.querySelectorAll('.top-btn').forEach(b => b.classList.remove('active'));
+
+  if (mode === 'split') {
+    preview.style.display = 'flex';
+    editorPane.style.display = 'flex';
+    handle.style.display = 'block';
+    document.getElementById('layout-split').classList.add('active');
+  } else if (mode === 'preview') {
+    preview.style.display = 'flex';
+    editorPane.style.display = 'none';
+    handle.style.display = 'none';
+    document.getElementById('layout-preview').classList.add('active');
+  } else if (mode === 'editor') {
+    preview.style.display = 'none';
+    editorPane.style.display = 'flex';
+    handle.style.display = 'none';
+    document.getElementById('layout-editor').classList.add('active');
+  }
+
+  // Keep hot reload active
+  document.getElementById('hot-reload-btn').classList.toggle('active', hotReload);
+}
+
+function toggleHotReload() {
+  hotReload = !hotReload;
+  document.getElementById('hot-reload-btn').classList.toggle('active', hotReload);
+}
+
+function setActivity(which) {
+  document.querySelectorAll('.act-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+}
+
+/*
+  ═══════════════════════════════════════
+  SPLIT RESIZE
+  ═══════════════════════════════════════
+*/
+const splitHandle = document.getElementById('split-handle');
+let isSplitDragging = false;
+
+splitHandle.addEventListener('mousedown', (e) => {
+  isSplitDragging = true;
+  splitHandle.classList.add('dragging');
+  document.body.style.cursor = 'col-resize';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isSplitDragging) return;
+  const container = document.getElementById('split-view');
+  const rect = container.getBoundingClientRect();
+  const actBarW = 42;
+  const ratio = (e.clientX - rect.left) / rect.width;
+  const clamped = Math.max(0.2, Math.min(0.8, ratio));
+
+  document.getElementById('preview-pane').style.flex = `${clamped}`;
+  document.getElementById('editor-pane').style.flex = `${1 - clamped}`;
+});
+
+document.addEventListener('mouseup', () => {
+  if (isSplitDragging) {
+    isSplitDragging = false;
+    splitHandle.classList.remove('dragging');
+    document.body.style.cursor = '';
+  }
+});
+
+/*
+  ═══════════════════════════════════════
+  INIT
+  ═══════════════════════════════════════
+*/
+openFile('shell.html');
+applyToPreview();
+setLayout('split');
+</script>
+</body>
+</html>

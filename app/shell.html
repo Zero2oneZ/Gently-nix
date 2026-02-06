@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+<title>GentlyOS</title>
+<link rel="stylesheet" href="styles/shell.css">
+</head>
+<body>
+
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-diamond" viewBox="0 0 24 24"><path d="M12 2L22 12L12 22L2 12Z"/></symbol>
+<symbol id="i-term" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 9l4 3-4 3"/><line x1="12" y1="15" x2="18" y2="15"/></symbol>
+<symbol id="i-git" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><line x1="6" y1="8" x2="6" y2="16"/><path d="M6 6c0 6 12 6 12 0"/></symbol>
+<symbol id="i-gpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><line x1="9" y1="2" x2="9" y2="5"/><line x1="15" y1="2" x2="15" y2="5"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/><line x1="2" y1="9" x2="5" y2="9"/><line x1="2" y1="15" x2="5" y2="15"/><line x1="19" y1="9" x2="22" y2="9"/><line x1="19" y1="15" x2="22" y2="15"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4" ry="10"/><line x1="2" y1="12" x2="22" y2="12"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="5"/><line x1="12" y1="11" x2="21" y2="2"/><line x1="18" y1="2" x2="21" y2="5"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5.5-3.8 10.7-8 12-4.2-1.3-8-6.5-8-12V6l8-4z"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M15 4.5L18.5 8 13 14.5H9.5V11L15 4.5z"/><line x1="9" y1="15" x2="4" y2="20"/></symbol>
+<symbol id="i-fork" viewBox="0 0 24 24"><circle cx="12" cy="18" r="2"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 8v2a4 4 0 004 4h4a4 4 0 004-4V8"/><line x1="12" y1="14" x2="12" y2="16"/></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></symbol>
+<symbol id="i-morph" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10"/><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14"/></symbol>
+<symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-1 19.95c1.5.1 2-1 2-1a2 2 0 012-2h1.5a2 2 0 002-2c0-3.5-3-3.5-3-6a4 4 0 118 0"/><circle cx="8" cy="10" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="16" cy="10" r="1.5"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="8" width="4" height="12" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/></symbol>
+<symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+<symbol id="i-feed" viewBox="0 0 24 24"><path d="M4 11a9 9 0 019 9"/><path d="M4 4a16 16 0 0116 16"/><circle cx="5" cy="19" r="1"/></symbol>
+<symbol id="i-chain" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+<symbol id="i-inject" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/><circle cx="12" cy="12" r="10"/></symbol>
+<symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+<symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+<symbol id="i-dl" viewBox="0 0 24 24"><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="2" x2="12" y2="16"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+<symbol id="i-min" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+<symbol id="i-max" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M22 6l-10 7L2 6" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 4c-2 0-3.5 1-4 2.5-.5-1-2-1.5-3-.5s-1.5 2.5-.5 4c-1 .5-1.5 2-.5 3s2 1.5 3 1c.5 1.5 2 2.5 4 2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4c2 0 3.5 1 4 2.5.5-1 2-1.5 3-.5s1.5 2.5.5 4c1 .5 1.5 2 .5 3s-2 1.5-3 1c-.5 1.5-2 2.5-4 2.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-video" viewBox="0 0 24 24"><rect x="2" y="4" width="15" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M17 8l5-3v14l-5-3V8z" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-dns" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2 12h20M12 2c2.5 2.5 4 6 4 10s-1.5 7.5-4 10c-2.5-2.5-4-6-4-10s1.5-7.5 4-10" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-face" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="1.5" fill="currentColor"/><circle cx="15" cy="10" r="1.5" fill="currentColor"/><path d="M8 15c1 2 3 3 4 3s3-1 4-3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-avatar" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-graphics" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="2" fill="currentColor"/><path d="M21 15l-5-5-4 4-3-3-6 6" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-tabs" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 8V6a2 2 0 012-2h4l2 2h8a2 2 0 012 2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 8V4M15 8V6" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+<symbol id="i-intro" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8v8" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 17l4-6 4 4 4-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="6" cy="17" r="1.5" fill="currentColor"/><circle cx="10" cy="11" r="1.5" fill="currentColor"/><circle cx="14" cy="15" r="1.5" fill="currentColor"/><circle cx="18" cy="7" r="1.5" fill="currentColor"/></symbol>
+</defs></svg>
+
+<div class="shell" id="shell" data-scope="chat">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="titlebar-drag">
+      <div class="genesis"><span class="i glow" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-key"/></svg></span> <span id="genesis-id">0x0000</span> <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-lock"/></svg></span></div>
+      <div class="scope-pills">
+        <button class="scope-pill on" style="--scope-color:var(--focus)" data-scope="chat"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-msg"/></svg></span> Chat</button>
+        <button class="scope-pill" style="--scope-color:var(--feed)" data-scope="feed"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-feed"/></svg></span> Feed</button>
+        <button class="scope-pill" style="--scope-color:var(--build)" data-scope="build"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-code"/></svg></span> Build</button>
+        <button class="scope-pill" style="--scope-color:var(--doc)" data-scope="doc"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-book"/></svg></span> Doc</button>
+      </div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="tier-badge" id="tier-badge">
+      <span class="tier-dot"></span>
+      <span class="tier-label">FREE</span>
+      <span class="tier-sep">|</span>
+      <span class="hw-score">HW:--</span>
+      <span class="bridge-dot" id="bridge-dot" title="Bridge: Offline"></span>
+    </div>
+    <div class="face-badge" id="face-badge" style="border:1px solid var(--focus);color:var(--focus)"><span class="i"><svg><use href="#i-diamond"/></svg></span> <span id="scope-label">CHAT</span></div>
+    <div class="titlebar-controls">
+      <button class="control-btn" id="btn-min"><span class="i"><svg><use href="#i-min"/></svg></span></button>
+      <button class="control-btn" id="btn-max"><span class="i"><svg><use href="#i-max"/></svg></span></button>
+      <button class="control-btn close" id="btn-close"><span class="i"><svg><use href="#i-x"/></svg></span></button>
+    </div>
+  </div>
+
+  <!-- LEFT SHELF -->
+  <div class="shelf-l" id="shelf-l">
+    <div class="rb on"><span class="i"><svg><use href="#i-layers"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-file"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-search"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-git"/></svg></span></div>
+    <div class="shelf-div"></div>
+    <div class="rb"><span class="i"><svg><use href="#i-chart"/></svg></span></div>
+  </div>
+
+  <!-- MAIN AREA -->
+  <div class="main">
+    <!-- PANE A - Claude WebContentsView will be positioned here -->
+    <div class="paneA" id="paneA">
+      <div class="paneA-head">
+        <div class="ph-dot"></div>
+        <span class="ph-label">FOCUS</span>
+        <span class="ph-ctx" id="chatCtx">claude.ai</span>
+      </div>
+      <div class="pane-placeholder" id="focusPlaceholder">
+        <!-- WebContentsView: claude.ai focus pane -->
+        <div class="placeholder-text">Claude Focus Pane</div>
+      </div>
+    </div>
+
+    <!-- PANE B - scope-dependent -->
+    <div class="paneB" id="paneB">
+      <div class="paneB-head" id="paneBHead">
+        <span class="ph-dot" id="paneBDot" style="width:5px;height:5px;border-radius:50%"></span>
+        <span class="ph-label" id="paneBLabel" style="letter-spacing:1px;font-size:7px">PROCESS</span>
+        <span style="flex:1"></span>
+        <button class="paneB-close" id="paneB-close">x</button>
+      </div>
+      <div class="paneB-body" id="paneBBody">
+        <!-- CHAT VIEW (Process pane) -->
+        <div class="scope-view active" id="view-chat">
+          <div class="pane-placeholder" id="processPlaceholder">
+            <!-- WebContentsView: claude.ai process pane -->
+            <div class="placeholder-text">Claude Process Pane</div>
+          </div>
+        </div>
+        <!-- FEED VIEW -->
+        <div class="scope-view" id="view-feed">
+          <div class="chain-bar" id="chainBar" style="display:none">
+            <span class="i" style="width:8px;height:8px;color:var(--feed)"><svg style="width:6px;height:6px"><use href="#i-chain"/></svg></span>
+            <span class="chain-node">source</span>
+            <span class="chain-arrow">-></span>
+            <span class="chain-node current">YOU</span>
+          </div>
+          <div class="feed-header">
+            <div class="feed-filter">
+              <button class="feed-filter-btn on" data-filter="all">All</button>
+              <button class="feed-filter-btn" data-filter="Hot">Hot</button>
+              <button class="feed-filter-btn" data-filter="Active">Active</button>
+              <button class="feed-filter-btn" data-filter="Cooling">Cooling</button>
+              <button class="feed-filter-btn" data-filter="Frozen">Frozen</button>
+            </div>
+            <button class="feed-refresh-btn" id="feedRefreshBtn" title="Refresh feed"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-morph"/></svg></span></button>
+            <button class="feed-ipfs-btn" id="feedIPFSBtn" title="Publish to IPFS"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-share"/></svg></span> IPFS</button>
+            <button class="feed-add-btn" id="feedAddBtn">+ New</button>
+          </div>
+          <div class="feed-list" id="feedList">
+            <!-- Living Feed items rendered here -->
+          </div>
+        </div>
+        <!-- BUILD VIEW -->
+        <div class="scope-view" id="view-build">
+          <!-- Build Header with Mode Tabs -->
+          <div class="build-header">
+            <div class="build-mode-tabs">
+              <button class="build-mode on" data-mode="code"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-code"/></svg></span> Code</button>
+              <button class="build-mode" data-mode="goo"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-chart"/></svg></span> GOO Field</button>
+              <button class="build-mode" data-mode="svg"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-palette"/></svg></span> SVG Visual</button>
+            </div>
+          </div>
+
+          <!-- Code Panel (Original Editor) -->
+          <div class="build-panel active" id="panel-code">
+            <div class="build-tabs">
+              <div class="build-tab on" data-file="app.html"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-file"/></svg></span> app.html</div>
+              <div class="build-tab" data-file="logic.js"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-code"/></svg></span> logic.js</div>
+              <div class="build-tab" data-file="style.css"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-palette"/></svg></span> style.css</div>
+            </div>
+            <div class="build-editor" id="buildEditor" contenteditable="true"></div>
+            <div class="build-status">
+              <span style="color:var(--focus)">* live</span>
+              <span>hot reload: 400ms</span>
+              <span style="margin-left:auto">hardlock: ON</span>
+            </div>
+          </div>
+
+          <!-- GOO Field Panel (Unified Distance Field) -->
+          <div class="build-panel" id="panel-goo">
+            <div class="goo-container">
+              <div class="goo-canvas-wrap">
+                <div class="goo-canvas" id="gooCanvas">
+                  <!-- SVG rendered here -->
+                </div>
+                <div class="goo-cursor-info" id="gooCursorInfo">
+                  <span class="goo-coord">x: 0.00</span>
+                  <span class="goo-coord">y: 0.00</span>
+                  <span class="goo-dist">d: 0.00</span>
+                </div>
+              </div>
+              <div class="goo-sidebar">
+                <div class="goo-section">
+                  <div class="goo-section-head">
+                    <span class="i" style="width:8px;height:8px;color:var(--build)"><svg style="width:6px;height:6px"><use href="#i-chart"/></svg></span>
+                    Field Settings
+                  </div>
+                  <div class="goo-control">
+                    <label>Blend Factor (k):</label>
+                    <input type="range" id="gooBlendSlider" min="0.05" max="1" step="0.05" value="0.3">
+                    <span id="gooBlendValue">0.30</span>
+                  </div>
+                  <div class="goo-buttons">
+                    <button class="goo-btn" id="gooResetBtn">Reset</button>
+                    <button class="goo-btn pri" id="gooRenderBtn">Render</button>
+                  </div>
+                </div>
+                <div class="goo-section">
+                  <div class="goo-section-head">
+                    <span class="i" style="width:8px;height:8px;color:var(--process)"><svg style="width:6px;height:6px"><use href="#i-layers"/></svg></span>
+                    Regions
+                  </div>
+                  <div class="goo-region-list" id="gooRegionList">
+                    <!-- Regions listed here -->
+                  </div>
+                  <button class="goo-btn add" id="gooAddRegionBtn">+ Add Region</button>
+                </div>
+                <div class="goo-section">
+                  <div class="goo-section-head">
+                    <span class="i" style="width:8px;height:8px;color:var(--focus)"><svg style="width:6px;height:6px"><use href="#i-diamond"/></svg></span>
+                    Claude Embodiment
+                  </div>
+                  <div class="goo-emotion-grid" id="gooEmotionGrid">
+                    <button class="goo-emotion-btn on" data-emotion="curious">Curious</button>
+                    <button class="goo-emotion-btn" data-emotion="focused">Focused</button>
+                    <button class="goo-emotion-btn" data-emotion="thinking">Thinking</button>
+                    <button class="goo-emotion-btn" data-emotion="uncertain">Uncertain</button>
+                    <button class="goo-emotion-btn" data-emotion="engaged">Engaged</button>
+                    <button class="goo-emotion-btn" data-emotion="warm">Warm</button>
+                  </div>
+                  <button class="goo-btn" id="gooClaudeBtn">Generate Claude</button>
+                </div>
+                <div class="goo-section">
+                  <div class="goo-section-head">
+                    <span class="i" style="width:8px;height:8px;color:var(--doc)"><svg style="width:6px;height:6px"><use href="#i-search"/></svg></span>
+                    Attention Map
+                  </div>
+                  <div class="goo-attention" id="gooAttention">
+                    <div class="goo-attention-empty">Click on canvas to sample attention</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="goo-formula">
+              <code>smooth_min(a, b, k) = min(a, b) - h*h*k*0.25 where h = max(k - |a-b|, 0) / k</code>
+              <span class="goo-formula-note">IS softmax IS attention</span>
+            </div>
+          </div>
+
+          <!-- SVG Visual Panel (Pattern Generator) -->
+          <div class="build-panel" id="panel-svg">
+            <div class="svg-container">
+              <div class="svg-preview-wrap">
+                <div class="svg-preview" id="svgPreview">
+                  <!-- SVG pattern rendered here -->
+                </div>
+              </div>
+              <div class="svg-sidebar">
+                <div class="svg-section">
+                  <div class="svg-section-head">
+                    <span class="i" style="width:8px;height:8px;color:var(--build)"><svg style="width:6px;height:6px"><use href="#i-palette"/></svg></span>
+                    Shape
+                  </div>
+                  <div class="svg-shape-grid" id="svgShapeGrid">
+                    <button class="svg-shape-btn on" data-shape="Circle"><span class="i" style="width:12px;height:12px"><svg style="width:10px;height:10px"><use href="#i-diamond"/></svg></span></button>
+                    <button class="svg-shape-btn" data-shape="Hexagon"><span class="i" style="width:12px;height:12px"><svg style="width:10px;height:10px"><use href="#i-layers"/></svg></span></button>
+                    <button class="svg-shape-btn" data-shape="Triangle"><span class="i" style="width:12px;height:12px"><svg style="width:10px;height:10px"><use href="#i-play"/></svg></span></button>
+                    <button class="svg-shape-btn" data-shape="Square"><span class="i" style="width:12px;height:12px"><svg style="width:10px;height:10px"><use href="#i-max"/></svg></span></button>
+                    <button class="svg-shape-btn" data-shape="Star"><span class="i" style="width:12px;height:12px"><svg style="width:10px;height:10px"><use href="#i-star"/></svg></span></button>
+                    <button class="svg-shape-btn" data-shape="Wave"><span class="i" style="width:12px;height:12px"><svg style="width:10px;height:10px"><use href="#i-feed"/></svg></span></button>
+                  </div>
+                </div>
+                <div class="svg-section">
+                  <div class="svg-section-head">
+                    <span class="i" style="width:8px;height:8px;color:var(--process)"><svg style="width:6px;height:6px"><use href="#i-morph"/></svg></span>
+                    Motion
+                  </div>
+                  <div class="svg-motion-grid" id="svgMotionGrid">
+                    <button class="svg-motion-btn on" data-motion="Pulse">Pulse</button>
+                    <button class="svg-motion-btn" data-motion="Rotate">Rotate</button>
+                    <button class="svg-motion-btn" data-motion="Breathe">Breathe</button>
+                    <button class="svg-motion-btn" data-motion="Orbit">Orbit</button>
+                    <button class="svg-motion-btn" data-motion="Glitch">Glitch</button>
+                    <button class="svg-motion-btn" data-motion="Static">Static</button>
+                  </div>
+                </div>
+                <div class="svg-section">
+                  <div class="svg-section-head">
+                    <span class="i" style="width:8px;height:8px;color:var(--warn)"><svg style="width:6px;height:6px"><use href="#i-palette"/></svg></span>
+                    Color
+                  </div>
+                  <div class="svg-color-grid" id="svgColorGrid">
+                    <button class="svg-color-btn on" data-color="#4d9fff" style="--color:#4d9fff"></button>
+                    <button class="svg-color-btn" data-color="#00e5a0" style="--color:#00e5a0"></button>
+                    <button class="svg-color-btn" data-color="#ff6b9d" style="--color:#ff6b9d"></button>
+                    <button class="svg-color-btn" data-color="#4ecdc4" style="--color:#4ecdc4"></button>
+                    <button class="svg-color-btn" data-color="#ffd93d" style="--color:#ffd93d"></button>
+                    <button class="svg-color-btn" data-color="#c77dff" style="--color:#c77dff"></button>
+                  </div>
+                </div>
+                <div class="svg-section">
+                  <div class="svg-section-head">
+                    <span class="i" style="width:8px;height:8px;color:var(--focus)"><svg style="width:6px;height:6px"><use href="#i-chart"/></svg></span>
+                    Size
+                  </div>
+                  <div class="svg-control">
+                    <input type="range" id="svgSizeSlider" min="40" max="180" step="10" value="100">
+                    <span id="svgSizeValue">100px</span>
+                  </div>
+                </div>
+                <div class="svg-actions">
+                  <button class="svg-btn" id="svgGenerateBtn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-morph"/></svg></span> Generate</button>
+                  <button class="svg-btn" id="svgRandomBtn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-star"/></svg></span> Random</button>
+                  <button class="svg-btn pri" id="svgCopyBtn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-dl"/></svg></span> Copy SVG</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- DOC VIEW -->
+        <div class="scope-view" id="view-doc">
+          <!-- Doc Header with Tabs -->
+          <div class="doc-header">
+            <div class="doc-tabs">
+              <button class="doc-tab on" data-tab="docs"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-file"/></svg></span> Docs</button>
+              <button class="doc-tab" data-tab="ged"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-globe"/></svg></span> G.E.D.</button>
+              <button class="doc-tab" data-tab="search"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-search"/></svg></span> Search</button>
+            </div>
+            <button class="doc-new-btn" id="docNewBtn">+ New Doc</button>
+          </div>
+
+          <!-- Documents Tab (Three-Chain) -->
+          <div class="doc-panel active" id="panel-docs">
+            <div class="doc-list" id="docList">
+              <!-- Documents rendered here -->
+            </div>
+            <div class="doc-detail" id="docDetail" style="display:none">
+              <div class="doc-detail-head">
+                <button class="doc-back-btn" id="docBackBtn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-back"/></svg></span></button>
+                <span class="doc-detail-title" id="docDetailTitle">Document Title</span>
+                <span class="doc-detail-type" id="docDetailType">three-chain</span>
+                <button class="doc-verify-btn" id="docVerifyBtn">Verify</button>
+                <button class="doc-finalize-btn" id="docFinalizeBtn">Finalize</button>
+              </div>
+              <div class="three-chain">
+                <div class="chain-col user-chain">
+                  <div class="chain-header">
+                    <span class="chain-icon"><span class="i" style="width:8px;height:8px;color:var(--focus)"><svg style="width:6px;height:6px"><use href="#i-msg"/></svg></span></span>
+                    User Chain
+                  </div>
+                  <div class="chain-steps" id="userChainSteps"></div>
+                  <div class="chain-add">
+                    <input type="text" placeholder="Add user input..." id="userStepInput">
+                    <button id="addUserStepBtn">+</button>
+                  </div>
+                </div>
+                <div class="chain-col claude-chain">
+                  <div class="chain-header">
+                    <span class="chain-icon"><span class="i" style="width:8px;height:8px;color:var(--process)"><svg style="width:6px;height:6px"><use href="#i-diamond"/></svg></span></span>
+                    Claude Chain
+                  </div>
+                  <div class="chain-steps" id="claudeChainSteps"></div>
+                  <div class="chain-add">
+                    <input type="text" placeholder="Add Claude response..." id="claudeStepInput">
+                    <button id="addClaudeStepBtn">+</button>
+                  </div>
+                </div>
+                <div class="chain-col result-chain">
+                  <div class="chain-header">
+                    <span class="chain-icon"><span class="i" style="width:8px;height:8px;color:var(--doc)"><svg style="width:6px;height:6px"><use href="#i-chain"/></svg></span></span>
+                    Result Chain
+                  </div>
+                  <div class="chain-steps" id="resultChainSteps"></div>
+                </div>
+              </div>
+              <div class="doc-actions">
+                <button class="doc-action-btn" data-action="Draft"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-edit"/></svg></span> Draft</button>
+                <button class="doc-action-btn" data-action="Expand"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-plus"/></svg></span> Expand</button>
+                <button class="doc-action-btn" data-action="Summarize"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-min"/></svg></span> Summarize</button>
+                <button class="doc-action-btn" data-action="Formalize"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-code"/></svg></span> Formalize</button>
+                <button class="doc-action-btn" data-action="Challenge"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-fork"/></svg></span> Challenge</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- G.E.D. Tab (Generative Educational Device) -->
+          <div class="doc-panel" id="panel-ged">
+            <div class="ged-translate">
+              <div class="ged-input-area">
+                <div class="ged-concept">
+                  <label>Concept to translate:</label>
+                  <input type="text" id="gedConceptInput" placeholder="e.g., recursion, algorithm, Big-O">
+                </div>
+                <div class="ged-domain">
+                  <label>Translate to domain:</label>
+                  <div class="ged-domain-grid" id="gedDomainGrid">
+                    <button class="ged-domain-btn on" data-domain="gaming"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-play"/></svg></span> Gaming</button>
+                    <button class="ged-domain-btn" data-domain="cooking"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-star"/></svg></span> Cooking</button>
+                    <button class="ged-domain-btn" data-domain="music"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-music"/></svg></span> Music</button>
+                    <button class="ged-domain-btn" data-domain="sports"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-chart"/></svg></span> Sports</button>
+                    <button class="ged-domain-btn" data-domain="art"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-palette"/></svg></span> Art</button>
+                    <button class="ged-domain-btn" data-domain="movies"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-play"/></svg></span> Movies</button>
+                    <button class="ged-domain-btn" data-domain="nature"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-globe"/></svg></span> Nature</button>
+                    <button class="ged-domain-btn" data-domain="building"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-layers"/></svg></span> Building</button>
+                    <button class="ged-domain-btn" data-domain="finance"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-chart"/></svg></span> Finance</button>
+                    <button class="ged-domain-btn" data-domain="social"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-msg"/></svg></span> Social</button>
+                  </div>
+                </div>
+                <button class="ged-translate-btn" id="gedTranslateBtn"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-morph"/></svg></span> Translate</button>
+              </div>
+              <div class="ged-result" id="gedResult">
+                <div class="ged-result-empty">Enter a concept and select a domain to see the translation</div>
+              </div>
+            </div>
+            <div class="ged-mastery" id="gedMastery">
+              <div class="ged-mastery-head">
+                <span class="i" style="width:10px;height:10px;color:var(--doc)"><svg style="width:8px;height:8px"><use href="#i-chart"/></svg></span>
+                Mastery Progress
+              </div>
+              <div class="ged-mastery-bars" id="gedMasteryBars">
+                <!-- Mastery bars rendered here -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Search Tab (Alexandria) -->
+          <div class="doc-panel" id="panel-search">
+            <div class="search-bar">
+              <input type="text" id="searchInput" placeholder="Search thoughts, concepts, knowledge...">
+              <button class="search-btn" id="searchBtn"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-search"/></svg></span></button>
+            </div>
+            <div class="search-modes">
+              <button class="search-mode on" data-mode="forward" title="Normal inference">Forward</button>
+              <button class="search-mode" data-mode="rewind" title="Who asked this before?">Rewind</button>
+              <button class="search-mode" data-mode="orthogonal" title="Surprising connections">Orthogonal</button>
+              <button class="search-mode" data-mode="reroute" title="Alternate proofs">Reroute</button>
+            </div>
+            <div class="search-results" id="searchResults">
+              <div class="search-empty">
+                <div class="search-empty-icon"><span class="i xl"><svg><use href="#i-search"/></svg></span></div>
+                <div class="search-empty-text">Search the Alexandria knowledge graph</div>
+              </div>
+            </div>
+            <div class="search-add-thought">
+              <input type="text" id="thoughtInput" placeholder="Add a new thought to the graph...">
+              <select id="thoughtShape">
+                <option value="concept">Concept</option>
+                <option value="question">Question</option>
+                <option value="answer">Answer</option>
+                <option value="reference">Reference</option>
+                <option value="bridge">Bridge</option>
+              </select>
+              <button id="addThoughtBtn">+ Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT SHELF -->
+  <div class="shelf-r" id="shelf-r">
+    <div class="rb" id="rb-inject"><span class="i"><svg><use href="#i-inject"/></svg></span><span class="dot" style="background:var(--focus)"></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-pin"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-feed"/></svg></span></div>
+    <div class="shelf-div"></div>
+    <div class="rb"><span class="i"><svg><use href="#i-shield"/></svg></span></div>
+    <div class="rb" id="rb-integrations"><span class="i"><svg><use href="#i-globe"/></svg></span></div>
+    <div class="shelf-div"></div>
+    <div class="rb" id="rb-dns" title="DNS / Domains"><span class="i"><svg><use href="#i-dns"/></svg></span></div>
+    <div class="rb" id="rb-phone" title="Phone / SMS"><span class="i"><svg><use href="#i-phone"/></svg></span></div>
+    <div class="rb" id="rb-mail" title="Gmail"><span class="i"><svg><use href="#i-mail"/></svg></span></div>
+    <div class="rb" id="rb-models" title="Model Hub"><span class="i"><svg><use href="#i-brain"/></svg></span></div>
+    <div class="rb" id="rb-video" title="LivePeer"><span class="i"><svg><use href="#i-video"/></svg></span></div>
+    <div class="shelf-div"></div>
+    <div class="rb" id="rb-face" title="Face Tracking"><span class="i"><svg><use href="#i-face"/></svg></span></div>
+    <div class="rb" id="rb-avatar" title="Avatar Studio"><span class="i"><svg><use href="#i-avatar"/></svg></span></div>
+    <div class="rb" id="rb-graphics" title="Graphics"><span class="i"><svg><use href="#i-graphics"/></svg></span></div>
+    <div class="rb" id="rb-tabs" title="Tab Switcher"><span class="i"><svg><use href="#i-tabs"/></svg></span></div>
+    <div class="rb" id="rb-intro" title="Intro Creator"><span class="i"><svg><use href="#i-intro"/></svg></span></div>
+    <div class="rb" id="rb-tradingview" title="TradingView"><span class="i"><svg><use href="#i-chart"/></svg></span></div>
+    <div class="shelf-div"></div>
+    <div class="rb" id="rb-cli"><span class="i"><svg><use href="#i-term"/></svg></span></div>
+  </div>
+
+  <!-- STAMP BAR -->
+  <div class="stamp">
+    <span class="stamp-text" id="stampText">[OLO|general|0|OPEN|#0000]</span>
+    <button class="stamp-btn" id="stamp-copy">Copy</button>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div class="bottom" id="bottom">
+    <div class="start"><span class="i lg glow" style="color:var(--focus)"><svg><use href="#i-diamond"/></svg></span></div>
+
+    <!-- Core (always visible) -->
+    <div class="tb on"><span class="i" style="color:var(--focus)"><svg><use href="#i-diamond"/></svg></span><span class="tb-name" style="color:var(--focus)">Shell</span></div>
+    <div class="tb" id="tb-term"><span class="i"><svg><use href="#i-term"/></svg></span><span class="tb-name">Term</span></div>
+    <div class="tb" id="tb-git"><span class="i"><svg><use href="#i-git"/></svg></span><span class="tb-name">Git</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-gpu"/></svg></span><span class="tb-name">GPU</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-shield"/></svg></span><span class="tb-name">Vault</span></div>
+
+    <div class="bot-div"></div>
+
+    <!-- SCOPE: chat tools -->
+    <div class="tb-section active" id="tb-chat">
+      <div class="tb" id="tb-clans"><span class="i" style="color:var(--focus)"><svg><use href="#i-layers"/></svg></span><span class="tb-name">Clans</span></div>
+      <div class="tb" id="tb-gates"><span class="i"><svg><use href="#i-morph"/></svg></span><span class="tb-name">Gates</span></div>
+      <div class="tb" id="tb-collapse"><span class="i"><svg><use href="#i-fork"/></svg></span><span class="tb-name">Collapse</span></div>
+      <div class="tb" id="tb-mcp"><span class="i" style="color:var(--code)"><svg><use href="#i-cpu"/></svg></span><span class="tb-name">MCP</span></div>
+    </div>
+
+    <!-- SCOPE: feed tools -->
+    <div class="tb-section" id="tb-feed">
+      <div class="tb"><span class="i" style="color:var(--feed)"><svg><use href="#i-feed"/></svg></span><span class="tb-name" style="color:var(--feed)">Browse</span></div>
+      <div class="tb"><span class="i" style="color:var(--feed)"><svg><use href="#i-fork"/></svg></span><span class="tb-name">Fork</span></div>
+      <div class="tb"><span class="i" style="color:var(--feed)"><svg><use href="#i-share"/></svg></span><span class="tb-name">Post</span></div>
+      <div class="tb"><span class="i" style="color:var(--feed)"><svg><use href="#i-chain"/></svg></span><span class="tb-name">Chain</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-star"/></svg></span><span class="tb-name">Saved</span></div>
+    </div>
+
+    <!-- SCOPE: build tools -->
+    <div class="tb-section" id="tb-build">
+      <div class="tb"><span class="i" style="color:var(--build)"><svg><use href="#i-code"/></svg></span><span class="tb-name" style="color:var(--build)">Editor</span></div>
+      <div class="tb"><span class="i" style="color:var(--build)"><svg><use href="#i-play"/></svg></span><span class="tb-name">Preview</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-save"/></svg></span><span class="tb-name">Save</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-pin"/></svg></span><span class="tb-name">Pin</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-share"/></svg></span><span class="tb-name">Publish</span></div>
+      <div class="tb" id="tb-agents"><span class="i" style="color:var(--process)"><svg><use href="#i-cpu"/></svg></span><span class="tb-name">Agents</span></div>
+    </div>
+
+    <!-- SCOPE: doc tools -->
+    <div class="tb-section" id="tb-doc">
+      <div class="tb"><span class="i" style="color:var(--doc)"><svg><use href="#i-book"/></svg></span><span class="tb-name" style="color:var(--doc)">Docs</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-edit"/></svg></span><span class="tb-name">Edit</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-git"/></svg></span><span class="tb-name">Version</span></div>
+    </div>
+
+    <div class="bot-div"></div>
+
+    <!-- Pinned user apps -->
+    <div class="tb"><span class="i" style="color:var(--focus)"><svg><use href="#i-palette"/></svg></span><span class="tb-name" style="color:var(--focus)">Apps</span></div>
+
+    <div class="bot-spacer"></div>
+
+    <!-- Inject target indicator -->
+    <div class="inject-target" id="injectTarget" style="display:none">
+      <span class="i" style="color:var(--focus);width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-inject"/></svg></span>
+      <span class="inject-arrow">-></span>
+      <span id="injectLabel">B</span>
+    </div>
+  </div>
+</div>
+
+<!-- Integrations Modal (Pro Tier) -->
+<div class="modal-overlay" id="integrationsModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="i" style="width:12px;height:12px;color:var(--focus)"><svg style="width:10px;height:10px"><use href="#i-globe"/></svg></span>
+      <span class="modal-title">Integrations</span>
+      <button class="modal-close" id="closeIntegrationsModal">x</button>
+    </div>
+    <div class="modal-body">
+      <!-- Porkbun Integration -->
+      <div class="integration-section">
+        <div class="integration-header">
+          <span class="integration-icon" style="color:var(--warn)">P</span>
+          <span class="integration-name">Porkbun</span>
+          <span class="integration-tier">PRO</span>
+          <span class="integration-status" id="porkbunStatus">Not configured</span>
+        </div>
+        <div class="integration-config" id="porkbunConfig">
+          <div class="integration-field">
+            <label>API Key:</label>
+            <input type="password" id="porkbunApiKey" placeholder="pk1_...">
+          </div>
+          <div class="integration-field">
+            <label>Secret Key:</label>
+            <input type="password" id="porkbunSecretKey" placeholder="sk1_...">
+          </div>
+          <div class="integration-actions">
+            <button class="int-btn" id="porkbunTestBtn">Test</button>
+            <button class="int-btn pri" id="porkbunSaveBtn">Save</button>
+          </div>
+        </div>
+        <div class="integration-content" id="porkbunContent" style="display:none">
+          <div class="porkbun-tabs">
+            <button class="porkbun-tab on" data-tab="domains">Domains</button>
+            <button class="porkbun-tab" data-tab="dns">DNS</button>
+            <button class="porkbun-tab" data-tab="ddns">DDNS</button>
+          </div>
+          <!-- Domains Tab -->
+          <div class="porkbun-panel active" id="porkbun-domains">
+            <div class="porkbun-toolbar">
+              <button class="int-btn" id="porkbunRefreshBtn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-morph"/></svg></span> Refresh</button>
+              <span class="porkbun-ip" id="porkbunIP">IP: --</span>
+            </div>
+            <div class="domain-list" id="domainList">
+              <div class="domain-empty">Configure API keys to view domains</div>
+            </div>
+          </div>
+          <!-- DNS Tab -->
+          <div class="porkbun-panel" id="porkbun-dns">
+            <div class="dns-domain-select">
+              <label>Domain:</label>
+              <select id="dnsDomainSelect">
+                <option value="">Select domain...</option>
+              </select>
+            </div>
+            <div class="dns-records" id="dnsRecords">
+              <div class="domain-empty">Select a domain to view DNS records</div>
+            </div>
+            <div class="dns-add">
+              <div class="dns-add-row">
+                <input type="text" id="dnsName" placeholder="subdomain">
+                <select id="dnsType">
+                  <option value="A">A</option>
+                  <option value="AAAA">AAAA</option>
+                  <option value="CNAME">CNAME</option>
+                  <option value="TXT">TXT</option>
+                  <option value="MX">MX</option>
+                  <option value="NS">NS</option>
+                </select>
+                <input type="text" id="dnsContent" placeholder="content">
+                <input type="number" id="dnsTTL" value="600" style="width:50px">
+                <button class="int-btn pri" id="dnsAddBtn">Add</button>
+              </div>
+            </div>
+          </div>
+          <!-- DDNS Tab -->
+          <div class="porkbun-panel" id="porkbun-ddns">
+            <div class="ddns-config">
+              <div class="ddns-row">
+                <label>Domain:</label>
+                <select id="ddnsDomain">
+                  <option value="">Select domain...</option>
+                </select>
+              </div>
+              <div class="ddns-row">
+                <label>Subdomain:</label>
+                <input type="text" id="ddnsSubdomain" placeholder="@ for root">
+              </div>
+              <div class="ddns-row">
+                <label>Current IP:</label>
+                <span id="ddnsCurrentIP">--</span>
+              </div>
+              <div class="ddns-actions">
+                <button class="int-btn" id="ddnsRefreshIP">Refresh IP</button>
+                <button class="int-btn pri" id="ddnsUpdateBtn">Update DNS</button>
+              </div>
+              <div class="ddns-status" id="ddnsStatus"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Huggingface Integration (Dev Tier) -->
+      <div class="integration-section" id="huggingfaceSection">
+        <div class="integration-header" onclick="toggleAISection('huggingface')">
+          <span class="integration-icon" style="color:var(--warn)">HF</span>
+          <span class="integration-name">Huggingface</span>
+          <span class="integration-tier">DEV</span>
+          <span class="integration-status" id="huggingfaceStatus">Not configured</span>
+        </div>
+        <div class="integration-config" id="huggingfaceConfig">
+          <div class="integration-field">
+            <label>API Token:</label>
+            <input type="password" id="huggingfaceToken" placeholder="hf_...">
+          </div>
+          <div class="integration-actions">
+            <button class="int-btn" id="huggingfaceTestBtn">Test</button>
+            <button class="int-btn pri" id="huggingfaceSaveBtn">Save</button>
+          </div>
+        </div>
+        <div class="integration-content" id="huggingfaceContent" style="display:none">
+          <div class="ai-tabs">
+            <button class="ai-tab on" data-provider="huggingface" data-tab="chat">Chat</button>
+            <button class="ai-tab" data-provider="huggingface" data-tab="tasks">Tasks</button>
+          </div>
+          <!-- Chat Tab -->
+          <div class="ai-panel active" id="hf-chat">
+            <div class="ai-model-select">
+              <label>Model:</label>
+              <select id="hfChatModel">
+                <option value="meta-llama/Meta-Llama-3-8B-Instruct">Llama 3 8B</option>
+                <option value="mistralai/Mistral-7B-Instruct-v0.2">Mistral 7B</option>
+                <option value="google/gemma-7b-it">Gemma 7B</option>
+                <option value="microsoft/Phi-3-mini-4k-instruct">Phi-3 Mini</option>
+              </select>
+            </div>
+            <div class="ai-chat-box">
+              <textarea id="hfChatInput" placeholder="Enter your message..."></textarea>
+              <button class="int-btn pri" id="hfChatSend">Send</button>
+            </div>
+            <div class="ai-response" id="hfChatResponse"></div>
+          </div>
+          <!-- Tasks Tab -->
+          <div class="ai-panel" id="hf-tasks">
+            <div class="ai-task-list">
+              <div class="ai-task-item" data-task="summarization">
+                <span class="task-name">Summarize</span>
+                <span class="task-desc">Condense long text</span>
+              </div>
+              <div class="ai-task-item" data-task="classification">
+                <span class="task-name">Classify</span>
+                <span class="task-desc">Zero-shot classification</span>
+              </div>
+              <div class="ai-task-item" data-task="embedding">
+                <span class="task-name">Embed</span>
+                <span class="task-desc">Generate embeddings</span>
+              </div>
+              <div class="ai-task-item" data-task="translation">
+                <span class="task-name">Translate</span>
+                <span class="task-desc">Multi-language</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ollama Integration (Dev Tier - minScore: 50) -->
+      <div class="integration-section" id="ollamaSection">
+        <div class="integration-header" onclick="toggleAISection('ollama')">
+          <span class="integration-icon" style="color:var(--focus)">OL</span>
+          <span class="integration-name">Ollama</span>
+          <span class="integration-tier">DEV</span>
+          <span class="integration-status" id="ollamaStatus">Not running</span>
+        </div>
+        <div class="integration-config" id="ollamaConfig">
+          <div class="integration-field">
+            <label>Host:</label>
+            <input type="text" id="ollamaHost" value="localhost" style="width:100px">
+            <label style="width:40px">Port:</label>
+            <input type="number" id="ollamaPort" value="11434" style="width:60px">
+          </div>
+          <div class="integration-actions">
+            <button class="int-btn" id="ollamaTestBtn">Test</button>
+            <button class="int-btn pri" id="ollamaSaveBtn">Connect</button>
+          </div>
+        </div>
+        <div class="integration-content" id="ollamaContent" style="display:none">
+          <div class="ai-tabs">
+            <button class="ai-tab on" data-provider="ollama" data-tab="models">Models</button>
+            <button class="ai-tab" data-provider="ollama" data-tab="chat">Chat</button>
+          </div>
+          <!-- Models Tab -->
+          <div class="ai-panel active" id="ollama-models">
+            <div class="ollama-toolbar">
+              <button class="int-btn" id="ollamaRefreshBtn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-morph"/></svg></span> Refresh</button>
+              <span class="ollama-running" id="ollamaRunning">0 running</span>
+            </div>
+            <div class="ollama-model-list" id="ollamaModelList">
+              <div class="domain-empty">Connect to view local models</div>
+            </div>
+            <div class="ollama-pull">
+              <select id="ollamaPullSelect">
+                <option value="">Pull a model...</option>
+                <option value="llama3.2:3b">llama3.2:3b (2.0GB)</option>
+                <option value="llama3.2:1b">llama3.2:1b (1.3GB)</option>
+                <option value="mistral:7b">mistral:7b (4.1GB)</option>
+                <option value="codellama:7b">codellama:7b (3.8GB)</option>
+                <option value="phi3:mini">phi3:mini (2.2GB)</option>
+                <option value="gemma2:2b">gemma2:2b (1.6GB)</option>
+              </select>
+              <button class="int-btn pri" id="ollamaPullBtn">Pull</button>
+            </div>
+          </div>
+          <!-- Chat Tab -->
+          <div class="ai-panel" id="ollama-chat">
+            <div class="ai-model-select">
+              <label>Model:</label>
+              <select id="ollamaChatModel">
+                <option value="">Select model...</option>
+              </select>
+            </div>
+            <div class="ai-chat-box">
+              <textarea id="ollamaChatInput" placeholder="Enter your message..."></textarea>
+              <button class="int-btn pri" id="ollamaChatSend">Send</button>
+            </div>
+            <div class="ai-response" id="ollamaChatResponse"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kaggle Integration (Dev Tier) -->
+      <div class="integration-section" id="kaggleSection">
+        <div class="integration-header" onclick="toggleAISection('kaggle')">
+          <span class="integration-icon" style="color:var(--process)">KG</span>
+          <span class="integration-name">Kaggle</span>
+          <span class="integration-tier">DEV</span>
+          <span class="integration-status" id="kaggleStatus">Not configured</span>
+        </div>
+        <div class="integration-config" id="kaggleConfig">
+          <div class="integration-field">
+            <label>Username:</label>
+            <input type="text" id="kaggleUsername" placeholder="your_username">
+          </div>
+          <div class="integration-field">
+            <label>API Key:</label>
+            <input type="password" id="kaggleApiKey" placeholder="your_api_key">
+          </div>
+          <div class="integration-actions">
+            <button class="int-btn" id="kaggleTestBtn">Test</button>
+            <button class="int-btn pri" id="kaggleSaveBtn">Save</button>
+          </div>
+        </div>
+        <div class="integration-content" id="kaggleContent" style="display:none">
+          <div class="ai-tabs">
+            <button class="ai-tab on" data-provider="kaggle" data-tab="datasets">Datasets</button>
+            <button class="ai-tab" data-provider="kaggle" data-tab="models">Models</button>
+          </div>
+          <!-- Datasets Tab -->
+          <div class="ai-panel active" id="kaggle-datasets">
+            <div class="kaggle-search">
+              <input type="text" id="kaggleSearchInput" placeholder="Search datasets...">
+              <button class="int-btn" id="kaggleSearchBtn">Search</button>
+            </div>
+            <div class="kaggle-list" id="kaggleDatasetList">
+              <div class="domain-empty">Configure API to browse datasets</div>
+            </div>
+          </div>
+          <!-- Models Tab -->
+          <div class="ai-panel" id="kaggle-models">
+            <div class="kaggle-search">
+              <input type="text" id="kaggleModelSearchInput" placeholder="Search models...">
+              <button class="int-btn" id="kaggleModelSearchBtn">Search</button>
+            </div>
+            <div class="kaggle-list" id="kaggleModelList">
+              <div class="domain-empty">Configure API to browse models</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MCP Tools Modal (Multi-Scope) -->
+<div class="modal-overlay" id="mcpModal" style="display:none">
+  <div class="modal" style="width:600px">
+    <div class="modal-header">
+      <span class="i" style="width:12px;height:12px;color:var(--code)"><svg style="width:10px;height:10px"><use href="#i-morph"/></svg></span>
+      <span class="modal-title">MCP Tools</span>
+      <div class="mcp-scope-badge" id="mcpScopeBadge">VISITOR</div>
+      <button class="modal-close" id="closeMCPModal">x</button>
+    </div>
+    <div class="modal-body">
+      <!-- Scope Selector -->
+      <div class="mcp-scope-selector">
+        <button class="mcp-scope-btn on" data-scope="visitor">
+          <span class="scope-icon">V</span>
+          <span class="scope-name">Visitor</span>
+          <span class="scope-tier">FREE</span>
+        </button>
+        <button class="mcp-scope-btn" data-scope="micro">
+          <span class="scope-icon">M</span>
+          <span class="scope-name">Micro</span>
+          <span class="scope-tier">BASIC</span>
+        </button>
+        <button class="mcp-scope-btn" data-scope="app">
+          <span class="scope-icon">A</span>
+          <span class="scope-name">App</span>
+          <span class="scope-tier">PRO</span>
+        </button>
+        <button class="mcp-scope-btn" data-scope="builder">
+          <span class="scope-icon">B</span>
+          <span class="scope-name">Builder</span>
+          <span class="scope-tier">DEV</span>
+        </button>
+      </div>
+
+      <!-- Tool Categories -->
+      <div class="mcp-tools-container">
+        <div class="mcp-tools-header">
+          <span>Available Tools</span>
+          <span class="mcp-tool-count" id="mcpToolCount">0 tools</span>
+        </div>
+        <div class="mcp-tools-list" id="mcpToolsList">
+          <!-- Tools rendered by scope -->
+        </div>
+      </div>
+
+      <!-- Tool Execution Panel -->
+      <div class="mcp-execute-panel">
+        <div class="mcp-execute-header">
+          <span>Execute Tool</span>
+          <span class="mcp-selected-tool" id="mcpSelectedTool">None selected</span>
+        </div>
+        <div class="mcp-execute-body">
+          <textarea id="mcpParamsInput" placeholder='{"param": "value"}'></textarea>
+          <button class="int-btn pri" id="mcpExecuteBtn">Execute</button>
+        </div>
+        <div class="mcp-result" id="mcpResult"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Agent System Modal (Multi-Agent Orchestration) -->
+<div class="modal-overlay" id="agentModal" style="display:none">
+  <div class="modal" style="width:650px">
+    <div class="modal-header">
+      <span class="i" style="width:12px;height:12px;color:var(--process)"><svg style="width:10px;height:10px"><use href="#i-cpu"/></svg></span>
+      <span class="modal-title">Agent System</span>
+      <span class="agent-status" id="agentStatus">0 active</span>
+      <button class="modal-close" id="closeAgentModal">x</button>
+    </div>
+    <div class="modal-body">
+      <!-- Agent Tabs -->
+      <div class="agent-tabs">
+        <button class="agent-tab on" data-tab="agents">Agents</button>
+        <button class="agent-tab" data-tab="workflows">Workflows</button>
+        <button class="agent-tab" data-tab="create">Create</button>
+      </div>
+
+      <!-- Agents Tab -->
+      <div class="agent-panel active" id="agent-agents">
+        <div class="agent-types">
+          <div class="agent-type-header">Agent Types</div>
+          <div class="agent-type-list" id="agentTypeList">
+            <!-- Agent types rendered here -->
+          </div>
+        </div>
+        <div class="agent-active">
+          <div class="agent-active-header">
+            <span>Active Agents</span>
+            <button class="int-btn" id="agentRefreshBtn"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-morph"/></svg></span></button>
+          </div>
+          <div class="agent-active-list" id="agentActiveList">
+            <div class="domain-empty">No active agents</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Workflows Tab -->
+      <div class="agent-panel" id="agent-workflows">
+        <div class="workflow-templates">
+          <div class="workflow-header">Workflow Templates</div>
+          <div class="workflow-template-list">
+            <div class="workflow-template" data-type="sequential">
+              <span class="wf-icon">S</span>
+              <span class="wf-name">Sequential</span>
+              <span class="wf-desc">A -> B -> C</span>
+            </div>
+            <div class="workflow-template" data-type="parallel">
+              <span class="wf-icon">P</span>
+              <span class="wf-name">Parallel</span>
+              <span class="wf-desc">A, B, C simultaneously</span>
+            </div>
+            <div class="workflow-template" data-type="branching">
+              <span class="wf-icon">B</span>
+              <span class="wf-name">Branching</span>
+              <span class="wf-desc">A -> (B || C) condition</span>
+            </div>
+            <div class="workflow-template" data-type="loop">
+              <span class="wf-icon">L</span>
+              <span class="wf-name">Loop</span>
+              <span class="wf-desc">A -> B -> A (until done)</span>
+            </div>
+          </div>
+        </div>
+        <div class="workflow-active">
+          <div class="workflow-active-header">Active Workflows</div>
+          <div class="workflow-active-list" id="workflowActiveList">
+            <div class="domain-empty">No active workflows</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Create Tab -->
+      <div class="agent-panel" id="agent-create">
+        <div class="agent-create-form">
+          <div class="create-field">
+            <label>Agent Type:</label>
+            <select id="createAgentType">
+              <option value="">Select type...</option>
+              <option value="writer">Writer</option>
+              <option value="analyst">Analyst</option>
+              <option value="designer">Designer</option>
+              <option value="researcher">Researcher</option>
+              <option value="coder">Coder</option>
+              <option value="coordinator">Coordinator</option>
+            </select>
+          </div>
+          <div class="create-field">
+            <label>Config (JSON):</label>
+            <textarea id="createAgentConfig" placeholder='{"name": "My Agent"}'></textarea>
+          </div>
+          <div class="create-actions">
+            <button class="int-btn pri" id="createAgentBtn">Create Agent</button>
+          </div>
+        </div>
+        <div class="agent-capabilities" id="agentCapabilities">
+          <div class="cap-header">Capabilities</div>
+          <div class="cap-list">Select an agent type to see capabilities</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- IPFS Publish Modal -->
+<div class="modal-overlay" id="ipfsModal" style="display:none">
+  <div class="modal" style="width:500px">
+    <div class="modal-header">
+      <span class="i" style="width:12px;height:12px;color:var(--feed)"><svg style="width:10px;height:10px"><use href="#i-share"/></svg></span>
+      <span class="modal-title">Publish to IPFS</span>
+      <button class="modal-close" id="closeIPFSModal">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="ipfs-status" id="ipfsStatus">
+        <div class="ipfs-node-status">
+          <span>IPFS Node:</span>
+          <span class="ipfs-node-indicator" id="ipfsNodeIndicator">Checking...</span>
+        </div>
+      </div>
+      <div class="ipfs-config" id="ipfsConfig">
+        <div class="integration-field">
+          <label>Host:</label>
+          <input type="text" id="ipfsHost" value="localhost">
+        </div>
+        <div class="integration-field">
+          <label>Port:</label>
+          <input type="number" id="ipfsPort" value="5001">
+        </div>
+        <div class="integration-actions">
+          <button class="int-btn" id="ipfsTestBtn">Test</button>
+          <button class="int-btn pri" id="ipfsConnectBtn">Connect</button>
+        </div>
+      </div>
+      <div class="ipfs-publish" id="ipfsPublish" style="display:none">
+        <div class="ipfs-publish-options">
+          <label><input type="checkbox" id="ipfsPublishPin" checked> Pin content</label>
+          <label><input type="checkbox" id="ipfsPublishCollection"> As collection</label>
+        </div>
+        <div class="ipfs-publish-preview">
+          <div class="ipfs-preview-header">Selected Items</div>
+          <div class="ipfs-preview-list" id="ipfsPreviewList">
+            <div class="domain-empty">Select feed items to publish</div>
+          </div>
+        </div>
+        <div class="ipfs-publish-actions">
+          <button class="int-btn pri" id="ipfsPublishBtn">Publish</button>
+        </div>
+        <div class="ipfs-result" id="ipfsResult"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DNS MODAL -->
+<div class="modal-overlay" id="dnsModal" style="display:none">
+  <div class="modal-content modal-lg">
+    <div class="modal-head"><span class="mh-title">DNS / Domains</span><button class="modal-x" onclick="closeDNSModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="dns-domains">Domains</button>
+        <button class="mtab" data-panel="dns-records">Records</button>
+        <button class="mtab" data-panel="dns-presets">Presets</button>
+      </div>
+      <div class="modal-panel" id="dns-domains">
+        <div class="list-container" id="domainList"></div>
+      </div>
+      <div class="modal-panel hidden" id="dns-records">
+        <select id="domainSelect" class="modal-select"></select>
+        <div class="list-container" id="recordList"></div>
+        <button class="int-btn" onclick="showAddRecord()">+ Add Record</button>
+      </div>
+      <div class="modal-panel hidden" id="dns-presets">
+        <h4>Hosting</h4>
+        <div class="preset-grid">
+          <button class="preset-btn" data-preset="GITHUB_PAGES">GitHub Pages</button>
+          <button class="preset-btn" data-preset="VERCEL">Vercel</button>
+          <button class="preset-btn" data-preset="NETLIFY">Netlify</button>
+          <button class="preset-btn" data-preset="CLOUDFLARE_PAGES">CF Pages</button>
+          <button class="preset-btn" data-preset="RAILWAY">Railway</button>
+          <button class="preset-btn" data-preset="RENDER">Render</button>
+        </div>
+        <h4>Email</h4>
+        <div class="preset-grid">
+          <button class="preset-btn" data-preset="PROTONMAIL">ProtonMail</button>
+          <button class="preset-btn" data-preset="GOOGLE_WORKSPACE">Google</button>
+          <button class="preset-btn" data-preset="FASTMAIL">Fastmail</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TELEPHONY MODAL -->
+<div class="modal-overlay" id="telephonyModal" style="display:none">
+  <div class="modal-content modal-lg">
+    <div class="modal-head"><span class="mh-title">Phone / SMS</span><button class="modal-x" onclick="closeTelephonyModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="tel-sms">Send SMS</button>
+        <button class="mtab" data-panel="tel-numbers">Numbers</button>
+        <button class="mtab" data-panel="tel-history">History</button>
+        <button class="mtab" data-panel="tel-pricing">Pricing</button>
+      </div>
+      <div class="modal-panel" id="tel-sms">
+        <select id="fromNumber" class="modal-select"></select>
+        <input type="tel" id="toNumber" placeholder="+1 555 123 4567" class="modal-input"/>
+        <textarea id="smsBody" placeholder="Message..." class="modal-textarea"></textarea>
+        <button class="int-btn pri" onclick="sendSMS()">Send SMS</button>
+      </div>
+      <div class="modal-panel hidden" id="tel-numbers">
+        <div class="list-container" id="numberList"></div>
+        <button class="int-btn" onclick="searchNumbers()">+ Get Number</button>
+      </div>
+      <div class="modal-panel hidden" id="tel-history">
+        <div class="list-container" id="messageHistory"></div>
+      </div>
+      <div class="modal-panel hidden" id="tel-pricing">
+        <div id="pricingCompare" class="pricing-table"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GMAIL MODAL -->
+<div class="modal-overlay" id="gmailModal" style="display:none">
+  <div class="modal-content modal-lg">
+    <div class="modal-head"><span class="mh-title">Gmail</span><button class="modal-x" onclick="closeGmailModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="gmail-inbox">Inbox</button>
+        <button class="mtab" data-panel="gmail-compose">Compose</button>
+        <button class="mtab" data-panel="gmail-accounts">Accounts</button>
+      </div>
+      <div class="modal-panel" id="gmail-inbox">
+        <select id="gmailAccount" class="modal-select"></select>
+        <div class="list-container email-list" id="emailList"></div>
+      </div>
+      <div class="modal-panel hidden" id="gmail-compose">
+        <input type="email" id="emailTo" placeholder="To" class="modal-input"/>
+        <input type="text" id="emailSubject" placeholder="Subject" class="modal-input"/>
+        <textarea id="emailBody" placeholder="Message..." class="modal-textarea tall"></textarea>
+        <button class="int-btn pri" onclick="sendEmail()">Send</button>
+      </div>
+      <div class="modal-panel hidden" id="gmail-accounts">
+        <div class="list-container" id="accountList"></div>
+        <button class="int-btn" onclick="addGmailAccount()">+ Add Account</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODEL HUB MODAL -->
+<div class="modal-overlay" id="modelHubModal" style="display:none">
+  <div class="modal-content modal-xl">
+    <div class="modal-head"><span class="mh-title">Model Hub</span><button class="modal-x" onclick="closeModelHubModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="hub-browse">Browse</button>
+        <button class="mtab" data-panel="hub-download">Download</button>
+        <button class="mtab" data-panel="hub-mcp">MCP</button>
+      </div>
+      <div class="modal-panel" id="hub-browse">
+        <div class="filter-row">
+          <select id="modelType" class="modal-select small">
+            <option value="">All Types</option>
+            <option value="llm">LLM</option>
+            <option value="embedding">Embedding</option>
+            <option value="image-gen">Image Gen</option>
+            <option value="speech-to-text">Speech-to-Text</option>
+          </select>
+          <input type="search" id="modelSearch" placeholder="Search..." class="modal-input flex"/>
+        </div>
+        <div class="list-container" id="modelList"></div>
+        <div class="disk-usage" id="diskUsage"></div>
+      </div>
+      <div class="modal-panel hidden" id="hub-download">
+        <h4>HuggingFace</h4>
+        <div class="input-row">
+          <input type="text" id="hfRepo" placeholder="username/model-name" class="modal-input flex"/>
+          <button class="int-btn" onclick="downloadHF()">Download</button>
+        </div>
+        <h4>Ollama</h4>
+        <div class="input-row">
+          <input type="text" id="ollamaModel" placeholder="llama3, mistral, phi3..." class="modal-input flex"/>
+          <button class="int-btn" onclick="downloadOllama()">Pull</button>
+        </div>
+        <div class="progress-container" id="downloadProgress"></div>
+      </div>
+      <div class="modal-panel hidden" id="hub-mcp">
+        <div class="list-container" id="mcpToolList"></div>
+        <div class="status-row" id="mcpServerStatus"></div>
+        <button class="int-btn pri" id="mcpServerBtn" onclick="toggleMCPServer()">Start MCP Server</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LIVEPEER MODAL -->
+<div class="modal-overlay" id="livepeerModal" style="display:none">
+  <div class="modal-content modal-lg">
+    <div class="modal-head"><span class="mh-title">LivePeer Video</span><button class="modal-x" onclick="closeLivepeerModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="lp-streams">Streams</button>
+        <button class="mtab" data-panel="lp-ai">AI Pipeline</button>
+        <button class="mtab" data-panel="lp-assets">Assets</button>
+      </div>
+      <div class="modal-panel" id="lp-streams">
+        <div class="list-container" id="streamList"></div>
+        <button class="int-btn" onclick="createStream()">+ New Stream</button>
+      </div>
+      <div class="modal-panel hidden" id="lp-ai">
+        <div class="ai-grid">
+          <button class="ai-btn" data-pipeline="text-to-image">Text to Image</button>
+          <button class="ai-btn" data-pipeline="image-to-image">Img to Img</button>
+          <button class="ai-btn" data-pipeline="image-to-video">Img to Video</button>
+          <button class="ai-btn" data-pipeline="upscale">Upscale</button>
+          <button class="ai-btn" data-pipeline="audio-to-text">Whisper</button>
+          <button class="ai-btn" data-pipeline="segment-anything">SAM2</button>
+        </div>
+        <div class="list-container" id="aiTaskList"></div>
+      </div>
+      <div class="modal-panel hidden" id="lp-assets">
+        <div class="list-container" id="assetList"></div>
+        <button class="int-btn" onclick="uploadAsset()">+ Upload</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Face Tracking Modal -->
+<div class="modal-overlay" id="faceTrackingModal" style="display:none">
+  <div class="modal-content modal-lg">
+    <div class="modal-head"><span class="mh-title">Face Tracking</span><button class="modal-x" onclick="closeFaceTrackingModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="ft-tracking">Tracking</button>
+        <button class="mtab" data-panel="ft-settings">Settings</button>
+      </div>
+      <div class="modal-panel" id="ft-tracking">
+        <div class="face-preview">
+          <div class="face-status" id="faceStatus">Not tracking</div>
+          <div class="face-stats" id="faceStats"></div>
+        </div>
+        <div class="btn-row">
+          <button class="int-btn" id="btnStartTracking" onclick="toggleFaceTracking()">Start Tracking</button>
+          <button class="int-btn" onclick="calibrateFace()">Calibrate</button>
+        </div>
+      </div>
+      <div class="modal-panel hidden" id="ft-settings">
+        <div class="setting-row">
+          <label>Camera</label>
+          <select id="cameraSelect"></select>
+        </div>
+        <div class="setting-row">
+          <label>Smoothing</label>
+          <input type="range" min="0" max="100" value="50" id="smoothingSlider">
+          <span id="smoothingValue">0.5</span>
+        </div>
+        <div class="blendshapes" id="blendshapeDisplay"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Avatar Studio Modal -->
+<div class="modal-overlay" id="avatarModal" style="display:none">
+  <div class="modal-content modal-xl">
+    <div class="modal-head"><span class="mh-title">Avatar Studio</span><button class="modal-x" onclick="closeAvatarModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="av-gallery">Gallery</button>
+        <button class="mtab" data-panel="av-editor">Editor</button>
+        <button class="mtab" data-panel="av-animate">Animate</button>
+      </div>
+      <div class="modal-panel" id="av-gallery">
+        <div class="avatar-grid" id="avatarGallery"></div>
+        <button class="int-btn" onclick="createNewAvatar()">+ New Avatar</button>
+      </div>
+      <div class="modal-panel hidden" id="av-editor">
+        <div class="avatar-editor">
+          <div class="avatar-preview" id="avatarPreview"></div>
+          <div class="avatar-parts">
+            <h4>Customize</h4>
+            <select id="partSelect">
+              <option value="head">Head</option>
+              <option value="eyes">Eyes</option>
+              <option value="nose">Nose</option>
+              <option value="mouth">Mouth</option>
+              <option value="hair">Hair</option>
+              <option value="body">Body</option>
+            </select>
+            <div class="asset-grid" id="assetPicker"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-panel hidden" id="av-animate">
+        <div class="animation-list" id="animationList">
+          <button class="anim-btn" data-anim="idle">Idle</button>
+          <button class="anim-btn" data-anim="blink">Blink</button>
+          <button class="anim-btn" data-anim="talk">Talk</button>
+          <button class="anim-btn" data-anim="nod">Nod</button>
+        </div>
+        <button class="int-btn" onclick="createCustomAnimation()">+ Custom Animation</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Realtime Graphics Modal -->
+<div class="modal-overlay" id="graphicsModal" style="display:none">
+  <div class="modal-content modal-lg">
+    <div class="modal-head"><span class="mh-title">Realtime Graphics</span><button class="modal-x" onclick="closeGraphicsModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="gfx-layers">Layers</button>
+        <button class="mtab" data-panel="gfx-effects">Effects</button>
+        <button class="mtab" data-panel="gfx-chat">Chat Overlay</button>
+      </div>
+      <div class="modal-panel" id="gfx-layers">
+        <div class="layer-list" id="layerList"></div>
+        <button class="int-btn" onclick="addGraphicsLayer()">+ Add Layer</button>
+      </div>
+      <div class="modal-panel hidden" id="gfx-effects">
+        <div class="effect-grid">
+          <button class="effect-btn" data-effect="none">None</button>
+          <button class="effect-btn" data-effect="particles">Particles</button>
+          <button class="effect-btn" data-effect="glow">Glow</button>
+          <button class="effect-btn" data-effect="matrix">Matrix</button>
+          <button class="effect-btn" data-effect="aurora">Aurora</button>
+          <button class="effect-btn" data-effect="pulse">Pulse</button>
+        </div>
+        <div class="effect-preview" id="effectPreview"></div>
+      </div>
+      <div class="modal-panel hidden" id="gfx-chat">
+        <div class="chat-preview" id="chatBubblePreview"></div>
+        <input type="text" id="chatBubbleText" placeholder="Enter message...">
+        <button class="int-btn" onclick="addChatBubbleOverlay()">Add Bubble</button>
+        <button class="int-btn" onclick="clearChatBubbles()">Clear All</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab Switcher Modal -->
+<div class="modal-overlay" id="tabsModal" style="display:none">
+  <div class="modal-content modal-lg">
+    <div class="modal-head"><span class="mh-title">Tab Manager</span><button class="modal-x" onclick="closeTabsModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="tabs-list">Tabs</button>
+        <button class="mtab" data-panel="tabs-groups">Groups</button>
+        <button class="mtab" data-panel="tabs-rotation">Auto Rotation</button>
+      </div>
+      <div class="modal-panel" id="tabs-list">
+        <div class="tabs-list" id="tabsList"></div>
+        <div class="btn-row">
+          <button class="int-btn" onclick="createNewTab()">+ New Tab</button>
+          <button class="int-btn" onclick="goBackTab()">Back</button>
+          <button class="int-btn" onclick="goForwardTab()">Forward</button>
+        </div>
+      </div>
+      <div class="modal-panel hidden" id="tabs-groups">
+        <div class="groups-list" id="groupsList"></div>
+        <button class="int-btn" onclick="createNewGroup()">+ New Group</button>
+      </div>
+      <div class="modal-panel hidden" id="tabs-rotation">
+        <div class="setting-row">
+          <label>Rotation Interval</label>
+          <input type="number" id="rotationInterval" value="5000" min="1000" step="1000">
+          <span>ms</span>
+        </div>
+        <div class="view-mode-select">
+          <h4>View Mode</h4>
+          <select id="viewModeSelect">
+            <option value="single">Single</option>
+            <option value="split_h">Split Horizontal</option>
+            <option value="split_v">Split Vertical</option>
+            <option value="grid">Grid</option>
+            <option value="carousel">Carousel</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="int-btn" id="btnAutoRotation" onclick="toggleAutoRotation()">Start Rotation</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Intro Creator Modal -->
+<div class="modal-overlay" id="introModal" style="display:none">
+  <div class="modal-content modal-xl">
+    <div class="modal-head"><span class="mh-title">Intro Creator</span><button class="modal-x" onclick="closeIntroModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="intro-templates">Templates</button>
+        <button class="mtab" data-panel="intro-editor">Editor</button>
+        <button class="mtab" data-panel="intro-preview">Preview</button>
+      </div>
+      <div class="modal-panel" id="intro-templates">
+        <div class="template-grid" id="introTemplates">
+          <button class="template-btn" data-template="gentlyDefault">Gently Default</button>
+          <button class="template-btn" data-template="cinematic">Cinematic</button>
+          <button class="template-btn" data-template="glitch">Glitch</button>
+          <button class="template-btn" data-template="neon">Neon</button>
+          <button class="template-btn" data-template="matrix">Matrix</button>
+        </div>
+      </div>
+      <div class="modal-panel hidden" id="intro-editor">
+        <div class="intro-timeline" id="introTimeline"></div>
+        <div class="intro-elements" id="introElements"></div>
+        <div class="btn-row">
+          <button class="int-btn" onclick="addIntroText()">+ Text</button>
+          <button class="int-btn" onclick="addIntroShape()">+ Shape</button>
+        </div>
+      </div>
+      <div class="modal-panel hidden" id="intro-preview">
+        <div class="intro-canvas" id="introCanvas"></div>
+        <div class="intro-controls">
+          <button class="int-btn" id="btnPlayIntro" onclick="toggleIntroPlay()">Play</button>
+          <input type="range" id="introSeek" min="0" max="100" value="0">
+          <span id="introTime">0:00 / 0:00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TradingView Modal -->
+<div class="modal-overlay" id="tradingviewModal" style="display:none">
+  <div class="modal-content modal-xl">
+    <div class="modal-head"><span class="mh-title">TradingView</span><button class="modal-x" onclick="closeTradingViewModal()"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="mtab active" data-panel="tv-chart">Chart Data</button>
+        <button class="mtab" data-panel="tv-pine">PineScript</button>
+        <button class="mtab" data-panel="tv-strategies">Strategies</button>
+        <button class="mtab" data-panel="tv-export">Export</button>
+      </div>
+      <div class="modal-panel" id="tv-chart">
+        <div class="tv-status" id="tvStatus">
+          <span class="tv-state">Disconnected</span>
+          <button class="int-btn" id="btnTVConnect" onclick="toggleTVConnect()">Connect</button>
+        </div>
+        <div class="tv-symbol-row">
+          <input type="text" id="tvSymbol" placeholder="BTCUSD" value="BTCUSD">
+          <select id="tvTimeframe">
+            <option value="1">1m</option>
+            <option value="5">5m</option>
+            <option value="15">15m</option>
+            <option value="60" selected>1h</option>
+            <option value="240">4h</option>
+            <option value="1D">1D</option>
+            <option value="1W">1W</option>
+          </select>
+          <button class="int-btn" onclick="applyTVSettings()">Apply</button>
+        </div>
+        <div class="tv-price-display" id="tvPriceDisplay">
+          <div class="tv-current-price">--</div>
+          <div class="tv-change">--</div>
+        </div>
+        <div class="tv-data-preview" id="tvDataPreview">
+          <div class="data-placeholder">Connect to TradingView to see chart data</div>
+        </div>
+      </div>
+      <div class="modal-panel hidden" id="tv-pine">
+        <div class="pine-templates">
+          <h4>Templates</h4>
+          <div class="template-btns">
+            <button class="pine-template-btn" data-template="basic_strategy">SMA Cross</button>
+            <button class="pine-template-btn" data-template="rsi_strategy">RSI</button>
+            <button class="pine-template-btn" data-template="macd_strategy">MACD</button>
+            <button class="pine-template-btn" data-template="bollinger_strategy">Bollinger</button>
+          </div>
+        </div>
+        <div class="pine-editor-wrapper">
+          <textarea id="pineCodeEditor" rows="15" placeholder="// PineScript v5 code here..."></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="int-btn" onclick="injectPineScript()">Inject to TradingView</button>
+          <button class="int-btn" onclick="validatePineScript()">Validate</button>
+        </div>
+        <div class="pine-output" id="pineOutput"></div>
+      </div>
+      <div class="modal-panel hidden" id="tv-strategies">
+        <div class="strategy-list" id="strategyList"></div>
+        <div class="btn-row">
+          <button class="int-btn" onclick="createNewStrategy()">+ New Strategy</button>
+        </div>
+        <div class="strategy-form hidden" id="strategyForm">
+          <h4>Create Strategy</h4>
+          <div class="setting-row">
+            <label>Name</label>
+            <input type="text" id="strategyName" placeholder="My Strategy">
+          </div>
+          <div class="setting-row">
+            <label>Template</label>
+            <select id="strategyTemplate">
+              <option value="basic_strategy">SMA Crossover</option>
+              <option value="rsi_strategy">RSI Strategy</option>
+              <option value="macd_strategy">MACD Strategy</option>
+              <option value="bollinger_strategy">Bollinger Bands</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label>Capital</label>
+            <input type="number" id="strategyCapital" value="10000">
+          </div>
+          <div class="setting-row">
+            <label>Position %</label>
+            <input type="number" id="strategyPosition" value="10" min="1" max="100">
+          </div>
+          <div class="btn-row">
+            <button class="int-btn" onclick="saveStrategy()">Create & Deploy</button>
+            <button class="int-btn" onclick="cancelStrategy()">Cancel</button>
+          </div>
+        </div>
+        <div class="backtest-results hidden" id="backtestResults">
+          <h4>Backtest Results</h4>
+          <div class="results-grid" id="resultsGrid"></div>
+        </div>
+      </div>
+      <div class="modal-panel hidden" id="tv-export">
+        <div class="export-options">
+          <h4>Export Chart Data</h4>
+          <div class="setting-row">
+            <label>Rows</label>
+            <input type="number" id="exportRows" value="100" min="10" max="1000">
+          </div>
+          <div class="btn-row">
+            <button class="int-btn" onclick="exportToCSV()">Export to CSV</button>
+            <button class="int-btn" onclick="showCSVInChat()">Show in Chat</button>
+            <button class="int-btn" onclick="captureChartImage()">Screenshot</button>
+          </div>
+        </div>
+        <div class="csv-preview" id="csvPreview">
+          <pre id="csvContent">No data exported yet</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="renderer/shell.js"></script>
+</body>
+</html>

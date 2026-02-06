@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gently Shell — With Terminal</title>
+<style>
+/*
+  ╔══════════════════════════════════════════════════════╗
+  ║  LAYOUT CALCULATION:                                 ║
+  ║                                                      ║
+  ║  The terminal lives in the BOTTOM ZONE.              ║
+  ║  It's mode 3: ⌨ KB | 📦 ART | ⚙ TERM               ║
+  ║                                                      ║
+  ║  WHY HERE AND NOT ELSEWHERE:                         ║
+  ║                                                      ║
+  ║  ✕ Third pane — Tom said no third pane.              ║
+  ║  ✕ Replace a chat pane — loses claude.ai real estate ║
+  ║  ✕ Inside shelf — too narrow (220px)                 ║
+  ║  ✕ Floating window — breaks the single-window model  ║
+  ║  ✕ Behind panes — hidden = forgotten                 ║
+  ║                                                      ║
+  ║  ✓ Bottom zone mode — already has mode switching.    ║
+  ║    Keyboard, artifacts, terminal are three views of   ║
+  ║    the SAME interaction layer.                        ║
+  ║    Keyboard = how you talk to Claude                 ║
+  ║    Artifacts = what Claude produced                   ║
+  ║    Terminal = where code runs                         ║
+  ║                                                      ║
+  ║  The bottom zone is RESIZABLE via drag handle.       ║
+  ║  Default: 200px (compact for keyboard)               ║
+  ║  Terminal mode: 320px (enough for ~12 lines)         ║
+  ║  Max drag: 60% of viewport (full workspace)          ║
+  ║  Min: 120px (just the mode bar + 2 lines)            ║
+  ║                                                      ║
+  ║  SCOPING:                                            ║
+  ║  Terminal CWD = active clan's git worktree.           ║
+  ║  Select a different clan → terminal cd's there.      ║
+  ║  The prompt shows: branch name, depth, git hash.     ║
+  ║  Claude CLI and gently CLI both on PATH.             ║
+  ║                                                      ║
+  ║  GRID (unchanged columns, dynamic last row):         ║
+  ║  cols: shelf-w | 1fr | 1fr | shelf-w                 ║
+  ║  rows: const-h | tab-h | 1fr | stamp-h | DYNAMIC    ║
+  ║                                                      ║
+  ║  The 1fr row (panes) absorbs the resize.             ║
+  ║  Bigger terminal = smaller panes. Shelves unaffected. ║
+  ╚══════════════════════════════════════════════════════╝
+*/
+
+:root {
+  --bg-void:      #08080c;
+  --bg-shelf:     #0c0c12;
+  --bg-panel:     #0e0e16;
+  --bg-surface:   #12121c;
+  --bg-elevated:  #18182a;
+  --bg-hover:     #1e1e38;
+  --bg-term:      #0a0a10;
+
+  --border:       #1a1a2e;
+  --border-focus: #2a2a4e;
+
+  --text:         #e0e0e8;
+  --muted:        #9999aa;
+  --dim:          #666680;
+  --vdim:         #333348;
+
+  --accent:       #00e5a0;
+  --process:      #4d9fff;
+  --warn:         #ffd93d;
+  --dead:         #ff4444;
+  --frozen:       #88ccff;
+  --code:         #c77dff;
+
+  --shelf-w:      220px;
+  --bottom-h:     200px;   /* Dynamic — changes on resize + mode switch */
+  --stamp-h:      30px;
+  --const-h:      28px;
+  --tab-h:        32px;
+
+  --font-mono:    'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
+  --font-ui:      'Inter', -apple-system, 'Segoe UI', sans-serif;
+
+  --radius-sm:    3px;
+  --radius-md:    6px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-void);
+  font-family: var(--font-mono);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ═══ MASTER GRID ═══ */
+.shell {
+  display: grid;
+  grid-template-columns: var(--shelf-w) 1fr 1fr var(--shelf-w);
+  grid-template-rows: var(--const-h) var(--tab-h) 1fr var(--stamp-h) var(--bottom-h);
+  grid-template-areas:
+    "const  const    const    const"
+    "lshelf tabA     tabB     rshelf"
+    "lshelf paneA    paneB    rshelf"
+    "lshelf stamp    stamp    rshelf"
+    "lshelf bottom   bottom   rshelf";
+  height: 100vh;
+}
+
+/* ═══ CONSTANTS BAR ═══ */
+.constants-bar {
+  grid-area: const;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.const-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 8px; white-space: nowrap; flex-shrink: 0;
+}
+.cc-tag { color: var(--accent); opacity: 0.5; }
+.cc-name { color: var(--text); font-weight: 500; }
+.cc-sum { color: var(--dim); }
+.cc-gates { color: var(--muted); font-size: 7px; }
+
+/* ═══ LEFT SHELF ═══ */
+.shelf-left {
+  grid-area: lshelf;
+  background: var(--bg-shelf);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.shelf-header {
+  padding: 6px 10px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border); min-height: 30px;
+}
+.shelf-title { font-size: 8px; font-weight: 700; letter-spacing: 2.5px; color: var(--vdim); }
+.shelf-action { font-size: 14px; cursor: pointer; color: var(--dim); transition: color 150ms; line-height: 1; }
+.shelf-action:hover { color: var(--accent); }
+.shelf-body { flex: 1; overflow-y: auto; padding: 3px; }
+
+.clan-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; border-radius: var(--radius-sm);
+  cursor: pointer; font-size: 10px; color: var(--muted);
+  transition: all 120ms; margin: 1px 0;
+}
+.clan-item:hover { background: var(--bg-surface); color: var(--text); }
+.clan-item.active { background: color-mix(in srgb, var(--accent) 8%, var(--bg-void)); color: var(--accent); }
+.clan-item.frozen { opacity: 0.35; }
+.clan-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.clan-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clan-depth { font-size: 7px; color: var(--dim); }
+.clan-hash { font-size: 7px; color: var(--vdim); }
+
+.shelf-divider {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 8px 3px;
+  font-size: 7px; letter-spacing: 1.5px; color: var(--vdim);
+}
+.shelf-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ═══ TAB BARS ═══ */
+.tab-bar {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 6px; gap: 3px;
+}
+.tab-bar-a { grid-area: tabA; border-right: 1px solid var(--border); }
+.tab-bar-b { grid-area: tabB; }
+
+.pane-tab {
+  padding: 4px 10px; font-size: 8px; letter-spacing: 0.5px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  cursor: pointer; color: var(--dim); transition: all 120ms;
+  border: 1px solid transparent; border-bottom: none;
+}
+.pane-tab:hover { color: var(--muted); }
+.pane-tab.active { color: var(--text); background: var(--bg-surface); border-color: var(--border); }
+
+.pane-indicator {
+  margin-left: auto; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid;
+}
+.pane-indicator.focus { border-color: var(--accent); }
+.pane-indicator.process { border-color: var(--process); }
+.pane-indicator.focus.on { background: var(--accent); }
+.pane-indicator.process.on { background: var(--process); }
+
+/* ═══ PANE MOCKS ═══ */
+.pane-mock {
+  background: var(--bg-void);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px; position: relative; overflow: hidden;
+}
+.pane-a { grid-area: paneA; border-right: 1px solid var(--border); }
+.pane-b { grid-area: paneB; }
+
+.pane-chat-mock { width: 80%; max-width: 400px; display: flex; flex-direction: column; gap: 6px; }
+.mock-msg {
+  padding: 8px 12px; border-radius: var(--radius-md);
+  font-size: 10px; line-height: 1.5; max-width: 85%;
+}
+.mock-msg.user { background: var(--bg-elevated); color: var(--muted); align-self: flex-end; border: 1px solid var(--border); }
+.mock-msg.claude { background: var(--bg-surface); color: var(--text); align-self: flex-start; }
+.mock-stamp { font-size: 7px; color: var(--accent); opacity: 0.5; margin-bottom: 2px; }
+.mock-input {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  margin-top: 6px;
+}
+.mock-input-text { flex: 1; font-size: 10px; color: var(--dim); }
+.mock-input-send { font-size: 12px; color: var(--accent); cursor: pointer; }
+
+/* ═══ RIGHT SHELF ═══ */
+.shelf-right {
+  grid-area: rshelf;
+  background: var(--bg-shelf);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.art-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 8px; cursor: pointer; font-size: 9px; color: var(--muted);
+  border-radius: var(--radius-sm); margin: 1px 0; transition: all 120ms;
+}
+.art-item:hover { background: var(--bg-surface); color: var(--text); }
+.art-auto { border-left: 2px solid var(--accent); }
+.art-staged { border-left: 2px solid var(--warn); }
+.art-injected { opacity: 0.3; }
+.art-icon { flex-shrink: 0; font-size: 10px; }
+.art-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-meta { font-size: 7px; color: var(--vdim); }
+
+/* ═══ STAMP BAR ═══ */
+.stamp-bar {
+  grid-area: stamp;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 10px; gap: 6px;
+}
+.stamp-live {
+  flex: 1; font-size: 8px; color: var(--accent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.stamp-btn {
+  padding: 2px 8px; font-size: 7px; letter-spacing: 0.5px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  cursor: pointer; color: var(--dim); background: transparent; transition: all 150ms;
+}
+.stamp-btn:hover { border-color: var(--accent); color: var(--muted); }
+
+/* ═══ BOTTOM ZONE ═══ */
+.bottom-zone {
+  grid-area: bottom;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: relative;
+}
+
+/* Drag handle */
+.drag-handle {
+  position: absolute;
+  top: -3px; left: 0; right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  z-index: 100;
+}
+.drag-handle::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 50%; transform: translateX(-50%);
+  width: 40px; height: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  transition: background 200ms;
+}
+.drag-handle:hover::after { background: var(--accent); }
+.drag-handle.dragging::after { background: var(--accent); width: 80px; }
+
+/* Zone header */
+.zone-header {
+  display: flex; align-items: center; gap: 3px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  min-height: 26px; flex-shrink: 0;
+}
+.zone-btn {
+  padding: 3px 8px; font-size: 7px; letter-spacing: 1px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  cursor: pointer; color: var(--dim); background: transparent; transition: all 150ms;
+}
+.zone-btn:hover { color: var(--muted); }
+.zone-btn.active { border-color: var(--accent); color: var(--accent); }
+
+.target-btns { margin-left: auto; display: flex; gap: 3px; }
+.target-btn {
+  padding: 3px 10px; font-size: 8px; font-weight: 600; letter-spacing: 0.5px;
+  border: 1.5px solid; border-radius: var(--radius-sm);
+  cursor: pointer; background: transparent; transition: all 150ms;
+}
+.target-btn.focus { border-color: var(--accent); color: var(--accent); }
+.target-btn.process { border-color: var(--process); color: var(--process); opacity: 0.4; }
+.target-btn.focus.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.target-btn.process.active { background: color-mix(in srgb, var(--process) 12%, transparent); opacity: 1; }
+
+/* Zone content container */
+.zone-content { flex: 1; overflow: hidden; position: relative; }
+
+/* ═══ KEYBOARD MODE ═══ */
+.kb-area {
+  position: absolute; inset: 0;
+  padding: 6px;
+  display: flex; flex-direction: column; gap: 3px;
+  justify-content: center;
+  transition: opacity 150ms;
+}
+.kb-area.hidden { opacity: 0; pointer-events: none; }
+
+.key-row { display: flex; gap: 3px; justify-content: center; }
+.key {
+  height: 30px; min-width: 30px; padding: 0 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-family: var(--font-mono);
+  border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-surface);
+  color: var(--text); transition: all 80ms; position: relative;
+}
+.key:hover { background: var(--bg-elevated); transform: translateY(-1px); }
+.key:active { transform: translateY(1px); background: var(--bg-hover); }
+.key::after {
+  content: ''; position: absolute;
+  bottom: 2px; left: 4px; right: 4px; height: 2px; border-radius: 1px;
+  transition: background 150ms;
+}
+.target-focus .key::after { background: var(--accent); opacity: 0.3; }
+.target-process .key::after { background: var(--process); opacity: 0.3; }
+
+.key.gate { font-size: 9px; min-width: 42px; font-weight: 600; letter-spacing: 0.5px; }
+.key.gate.open  { color: var(--dim); }
+.key.gate.half  { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, var(--border)); }
+.key.gate.yes   { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.key.gate.no    { color: var(--dead); border-color: color-mix(in srgb, var(--dead) 30%, var(--border)); }
+
+.key.action { font-size: 8px; letter-spacing: 0.5px; min-width: 52px; color: var(--muted); }
+.key.action.primary { border-color: var(--accent); color: var(--accent); }
+.key.action.collapse-btn { border-color: var(--warn); color: var(--warn); }
+.key.action.code-btn { border-color: var(--code); color: var(--code); }
+.key.space { flex: 1; max-width: 280px; }
+
+/* ═══ ARTIFACT MODE ═══ */
+.art-area {
+  position: absolute; inset: 0;
+  padding: 6px; overflow-y: auto;
+  transition: opacity 150ms;
+}
+.art-area.hidden { opacity: 0; pointer-events: none; }
+
+/* ═══ TERMINAL MODE ═══ */
+.term-area {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  transition: opacity 150ms;
+  background: var(--bg-term);
+}
+.term-area.hidden { opacity: 0; pointer-events: none; }
+
+/* Terminal header — shows what the terminal is scoped to */
+.term-scope {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 8px; flex-shrink: 0;
+}
+.term-scope-branch { color: var(--accent); }
+.term-scope-path { color: var(--dim); }
+.term-scope-hash { color: var(--vdim); }
+.term-scope-depth { color: var(--warn); font-weight: 600; }
+
+/* Terminal output */
+.term-output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.term-line { color: var(--muted); }
+.term-line.cmd { color: var(--text); }
+.term-line.output { color: var(--muted); }
+.term-line.error { color: var(--dead); }
+.term-line.success { color: var(--accent); }
+.term-line.info { color: var(--process); }
+.term-line.dim { color: var(--dim); }
+
+/* Terminal prompt */
+.term-prompt-line {
+  display: flex; align-items: center;
+  padding: 2px 10px 6px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  flex-shrink: 0;
+}
+.term-prompt-prefix {
+  font-size: 11px; color: var(--accent);
+  white-space: nowrap; margin-right: 6px;
+}
+.term-prompt-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text);
+  outline: none;
+  caret-color: var(--accent);
+}
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div class="shell" id="shell">
+  <!-- ═══ CONSTANTS BAR ═══ -->
+  <div class="constants-bar">
+    <span class="const-chip">
+      <span class="cc-tag">const/blue-channel</span>
+      <span class="cc-name">Blue Channel</span>
+      <span class="cc-sum">"blue verified as carrier"</span>
+      <span class="cc-gates">A● B●</span>
+    </span>
+    <span class="const-chip">
+      <span class="cc-tag">const/jpeg-internals</span>
+      <span class="cc-name">JPEG Internals</span>
+      <span class="cc-sum">"4:2:0 destroys 75% chroma"</span>
+      <span class="cc-gates">C● D●</span>
+    </span>
+  </div>
+
+  <!-- ═══ LEFT SHELF ═══ -->
+  <div class="shelf-left">
+    <div class="shelf-header">
+      <span class="shelf-title">CLANS</span>
+      <span class="shelf-action" onclick="addClan()" title="Add Clan">+</span>
+    </div>
+    <div class="shelf-body" id="clan-list">
+      <div class="shelf-divider">ACTIVE</div>
+      <div class="clan-item active" data-clan="0" data-branch="clan/encoding-strategy" data-path="~/projects/olo-guard/worktrees/encoding-strategy" data-depth="4" data-hash="a3f2" onclick="selectClan(this)">
+        <div class="clan-dot" style="background:var(--accent)"></div>
+        <span class="clan-name">Encoding Strategy</span>
+        <span class="clan-depth">d=4</span>
+        <span class="clan-hash">#a3f2</span>
+      </div>
+      <div class="clan-item" data-clan="1" data-branch="clan/channel-capacity" data-path="~/projects/olo-guard/worktrees/channel-capacity" data-depth="3" data-hash="7b1e" onclick="selectClan(this)">
+        <div class="clan-dot" style="background:#c77dff"></div>
+        <span class="clan-name">Channel Capacity</span>
+        <span class="clan-depth">d=3</span>
+        <span class="clan-hash">#7b1e</span>
+      </div>
+      <div class="clan-item" data-clan="2" data-branch="clan/error-correction" data-path="~/projects/olo-guard/worktrees/error-correction" data-depth="1" data-hash="d4c8" onclick="selectClan(this)">
+        <div class="clan-dot" style="background:var(--warn)"></div>
+        <span class="clan-name">Error Correction</span>
+        <span class="clan-depth">d=1</span>
+        <span class="clan-hash">#d4c8</span>
+      </div>
+
+      <div class="shelf-divider">FROZEN</div>
+      <div class="clan-item frozen" data-branch="clan/blue-channel">
+        <div class="clan-dot" style="background:var(--frozen)"></div>
+        <span class="clan-name">Blue Channel Math</span>
+        <span class="clan-depth">d=8</span>
+        <span class="clan-hash">❄</span>
+      </div>
+      <div class="clan-item frozen" data-branch="clan/jpeg-internals">
+        <div class="clan-dot" style="background:var(--frozen)"></div>
+        <span class="clan-name">JPEG Internals</span>
+        <span class="clan-depth">d=6</span>
+        <span class="clan-hash">❄</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB BARS ═══ -->
+  <div class="tab-bar tab-bar-a">
+    <div class="pane-tab active">Encoding Strategy</div>
+    <div class="pane-tab">+ new</div>
+    <div class="pane-indicator focus on"></div>
+  </div>
+  <div class="tab-bar tab-bar-b">
+    <div class="pane-tab active">Channel Capacity</div>
+    <div class="pane-tab">+ new</div>
+    <div class="pane-indicator process"></div>
+  </div>
+
+  <!-- ═══ FOCUS PANE ═══ -->
+  <div class="pane-mock pane-a">
+    <div class="pane-chat-mock">
+      <div class="mock-msg user">
+        <div class="mock-stamp">[OLO|🌿clan/encoding|📍4|🔒F●G○|#a3f2]</div>
+        How does frequency domain encoding survive JPEG recompression?
+      </div>
+      <div class="mock-msg claude">
+        Mid-frequency DCT coefficients (4-12 per 8×8 block) are least affected by quantization. Embedding there avoids both DC (high energy) and HF (first zeroed).
+      </div>
+    </div>
+    <div class="mock-input">
+      <span class="mock-input-text">Type a message...</span>
+      <span class="mock-input-send">↑</span>
+    </div>
+  </div>
+
+  <!-- ═══ PROCESS PANE ═══ -->
+  <div class="pane-mock pane-b">
+    <div class="pane-chat-mock">
+      <div class="mock-msg user">
+        <div class="mock-stamp">[OLO|🌿clan/capacity|📍3|🔒K●L◐|#7b1e]</div>
+        Realistic bit capacity per 1024×1024?
+      </div>
+      <div class="mock-msg claude">
+        16,384 luminance blocks × 9 usable coefficients = ~147K bits theoretical. After 40% ECC overhead: ~240 reliable bits (30 bytes) per image.
+      </div>
+    </div>
+    <div class="mock-input">
+      <span class="mock-input-text">Type a message...</span>
+      <span class="mock-input-send">↑</span>
+    </div>
+  </div>
+
+  <!-- ═══ RIGHT SHELF ═══ -->
+  <div class="shelf-right">
+    <div class="shelf-header">
+      <span class="shelf-title">ARTIFACTS</span>
+      <span class="shelf-action" title="Collect">⊕</span>
+    </div>
+    <div class="shelf-body">
+      <div class="shelf-divider">AUTO</div>
+      <div class="art-item art-auto">
+        <span class="art-icon">⚙</span>
+        <span class="art-name">Blue: "carrier verified"</span>
+        <span class="art-meta">d=8</span>
+      </div>
+      <div class="art-item art-auto">
+        <span class="art-icon">⚙</span>
+        <span class="art-name">JPEG: "75% chroma lost"</span>
+        <span class="art-meta">d=6</span>
+      </div>
+      <div class="shelf-divider">STAGED</div>
+      <div class="art-item art-staged">
+        <span class="art-icon">📎</span>
+        <span class="art-name">freq_encoder.rs</span>
+        <span class="art-meta">→A</span>
+      </div>
+      <div class="shelf-divider">COLLECTED</div>
+      <div class="art-item">
+        <span class="art-icon">📄</span>
+        <span class="art-name">DCT coefficient analysis</span>
+        <span class="art-meta">14 ln</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STAMP BAR ═══ -->
+  <div class="stamp-bar">
+    <span class="stamp-live" id="stamp-display" onclick="copyStamp()">
+      [OLO|🌿clan/encoding-strategy|📍4|⚡OPEN|🔒A●B●C●D●E◐F●G○|📌freq-domain|#a3f2|⏱0201T2130]
+    </span>
+    <button class="stamp-btn" onclick="copyStamp()">📋</button>
+    <button class="stamp-btn" id="state-cycle" onclick="cycleState()">⚡OPEN</button>
+    <button class="stamp-btn" onclick="pinPrompt()">📌</button>
+  </div>
+
+  <!-- ═══ BOTTOM ZONE ═══ -->
+  <div class="bottom-zone" id="bottom-zone">
+    <div class="drag-handle" id="drag-handle"></div>
+
+    <div class="zone-header">
+      <button class="zone-btn active" id="mode-kb" onclick="setMode('kb')">⌨ KEYBOARD</button>
+      <button class="zone-btn" id="mode-art" onclick="setMode('art')">📦 ARTIFACTS</button>
+      <button class="zone-btn" id="mode-term" onclick="setMode('term')">⚙ TERMINAL</button>
+      <div class="target-btns">
+        <button class="target-btn focus active" id="target-a" onclick="setTarget('focus')">A FOCUS</button>
+        <button class="target-btn process" id="target-b" onclick="setTarget('process')">B PROCESS</button>
+      </div>
+    </div>
+
+    <div class="zone-content" id="zone-content">
+      <!-- KEYBOARD -->
+      <div class="kb-area target-focus" id="kb-area">
+        <div class="key-row" id="gate-row">
+          <div class="key gate yes" onclick="cycleGate(this)" data-gate="A" data-state="yes">A●</div>
+          <div class="key gate yes" onclick="cycleGate(this)" data-gate="B" data-state="yes">B●</div>
+          <div class="key gate yes" onclick="cycleGate(this)" data-gate="C" data-state="yes">C●</div>
+          <div class="key gate yes" onclick="cycleGate(this)" data-gate="D" data-state="yes">D●</div>
+          <div class="key gate half" onclick="cycleGate(this)" data-gate="E" data-state="half">E◐</div>
+          <div class="key gate yes" onclick="cycleGate(this)" data-gate="F" data-state="yes">F●</div>
+          <div class="key gate open" onclick="cycleGate(this)" data-gate="G" data-state="open">G○</div>
+          <div style="width:12px"></div>
+          <div class="key action primary">⚡OPEN</div>
+          <div class="key action">⚡GATE</div>
+          <div class="key action">⚡DONE</div>
+        </div>
+        <div class="key-row">
+          <div class="key">q</div><div class="key">w</div><div class="key">e</div><div class="key">r</div><div class="key">t</div><div class="key">y</div><div class="key">u</div><div class="key">i</div><div class="key">o</div><div class="key">p</div>
+        </div>
+        <div class="key-row">
+          <div class="key">a</div><div class="key">s</div><div class="key">d</div><div class="key">f</div><div class="key">g</div><div class="key">h</div><div class="key">j</div><div class="key">k</div><div class="key">l</div>
+        </div>
+        <div class="key-row">
+          <div class="key">z</div><div class="key">x</div><div class="key">c</div><div class="key">v</div><div class="key">b</div><div class="key">n</div><div class="key">m</div>
+        </div>
+        <div class="key-row">
+          <div class="key action">◆ SAVE</div>
+          <div class="key action">🌿 FORK</div>
+          <div class="key action collapse-btn">⭐ COLLAPSE</div>
+          <div class="key action" style="border-color:var(--accent);color:var(--accent)">A</div>
+          <div class="key space"></div>
+          <div class="key action" style="border-color:var(--process);color:var(--process);opacity:0.4">B</div>
+          <div class="key action code-btn">⚙ CODE</div>
+          <div class="key action">📌 PIN</div>
+        </div>
+      </div>
+
+      <!-- ARTIFACTS -->
+      <div class="art-area hidden" id="art-area">
+        <div style="padding:20px;text-align:center;font-size:9px;color:var(--dim)">
+          Artifact management view (staged, inject, preview)
+        </div>
+      </div>
+
+      <!-- TERMINAL -->
+      <div class="term-area hidden" id="term-area">
+        <div class="term-scope" id="term-scope">
+          <span class="term-scope-branch" id="term-branch">clan/encoding-strategy</span>
+          <span class="term-scope-path" id="term-path">~/projects/olo-guard/worktrees/encoding-strategy</span>
+          <span class="term-scope-depth" id="term-depth">d=4</span>
+          <span class="term-scope-hash" id="term-hash">#a3f2</span>
+        </div>
+        <div class="term-output" id="term-output"></div>
+        <div class="term-prompt-line">
+          <span class="term-prompt-prefix" id="term-prompt">encoding-strategy $</span>
+          <input class="term-prompt-input" id="term-input" spellcheck="false" autofocus />
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  ═══════════════════════════════════════
+  STATE
+  ═══════════════════════════════════════
+*/
+let currentTarget = 'focus';
+let currentMode = 'kb';
+let stampState = 'OPEN';
+let termHistory = [];
+let historyIdx = -1;
+
+const gateOrder = ['open', 'half', 'yes', 'no'];
+const gateSym = { open: '○', half: '◐', yes: '●', no: '✕' };
+
+// Active clan context (terminal CWD follows this)
+let activeClan = {
+  name: 'Encoding Strategy',
+  branch: 'clan/encoding-strategy',
+  path: '~/projects/olo-guard/worktrees/encoding-strategy',
+  depth: 4,
+  hash: 'a3f2',
+};
+
+/*
+  ═══════════════════════════════════════
+  MODE SWITCHING
+  ═══════════════════════════════════════
+*/
+const TERM_HEIGHT = 320;  // Terminal gets more space
+const KB_HEIGHT = 200;    // Keyboard is compact
+
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('mode-kb').classList.toggle('active', m === 'kb');
+  document.getElementById('mode-art').classList.toggle('active', m === 'art');
+  document.getElementById('mode-term').classList.toggle('active', m === 'term');
+
+  document.getElementById('kb-area').classList.toggle('hidden', m !== 'kb');
+  document.getElementById('art-area').classList.toggle('hidden', m !== 'art');
+  document.getElementById('term-area').classList.toggle('hidden', m !== 'term');
+
+  // Resize bottom zone for terminal
+  const newH = m === 'term' ? TERM_HEIGHT : KB_HEIGHT;
+  document.getElementById('shell').style.gridTemplateRows =
+    `var(--const-h) var(--tab-h) 1fr var(--stamp-h) ${newH}px`;
+
+  if (m === 'term') {
+    const input = document.getElementById('term-input');
+    setTimeout(() => input.focus(), 50);
+  }
+}
+
+function setTarget(t) {
+  currentTarget = t;
+  const area = document.getElementById('kb-area');
+  area.classList.toggle('target-focus', t === 'focus');
+  area.classList.toggle('target-process', t === 'process');
+  document.getElementById('target-a').classList.toggle('active', t === 'focus');
+  document.getElementById('target-b').classList.toggle('active', t === 'process');
+  document.querySelectorAll('.pane-indicator.focus').forEach(el => el.classList.toggle('on', t === 'focus'));
+  document.querySelectorAll('.pane-indicator.process').forEach(el => el.classList.toggle('on', t === 'process'));
+  updateStamp();
+}
+
+/*
+  ═══════════════════════════════════════
+  DRAG RESIZE
+  ═══════════════════════════════════════
+*/
+const handle = document.getElementById('drag-handle');
+let isDragging = false;
+let startY, startH;
+
+handle.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  startY = e.clientY;
+  startH = document.getElementById('bottom-zone').offsetHeight;
+  handle.classList.add('dragging');
+  document.body.style.cursor = 'ns-resize';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const delta = startY - e.clientY;
+  const newH = Math.max(120, Math.min(window.innerHeight * 0.6, startH + delta));
+  document.getElementById('shell').style.gridTemplateRows =
+    `var(--const-h) var(--tab-h) 1fr var(--stamp-h) ${newH}px`;
+});
+
+document.addEventListener('mouseup', () => {
+  if (isDragging) {
+    isDragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+  }
+});
+
+/*
+  ═══════════════════════════════════════
+  CLAN SELECTION → TERMINAL FOLLOWS
+  ═══════════════════════════════════════
+*/
+function selectClan(el) {
+  if (el.classList.contains('frozen')) return;
+
+  document.querySelectorAll('.clan-item').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+
+  activeClan = {
+    name: el.querySelector('.clan-name').textContent,
+    branch: el.dataset.branch,
+    path: el.dataset.path,
+    depth: parseInt(el.dataset.depth || 0),
+    hash: el.dataset.hash || '0000',
+  };
+
+  // Update terminal scope
+  updateTermScope();
+
+  // Log the cd in terminal
+  termWrite(`cd ${activeClan.path}`, 'dim');
+
+  updateStamp();
+}
+
+function updateTermScope() {
+  document.getElementById('term-branch').textContent = activeClan.branch;
+  document.getElementById('term-path').textContent = activeClan.path;
+  document.getElementById('term-depth').textContent = `d=${activeClan.depth}`;
+  document.getElementById('term-hash').textContent = `#${activeClan.hash}`;
+  document.getElementById('term-prompt').textContent =
+    `${activeClan.name.toLowerCase().replace(/\s+/g, '-')} $`;
+}
+
+/*
+  ═══════════════════════════════════════
+  TERMINAL
+  ═══════════════════════════════════════
+*/
+const output = document.getElementById('term-output');
+const input = document.getElementById('term-input');
+
+function termWrite(text, cls = 'output') {
+  const line = document.createElement('div');
+  line.className = `term-line ${cls}`;
+  line.textContent = text;
+  output.appendChild(line);
+  output.scrollTop = output.scrollHeight;
+}
+
+function termWriteHTML(html, cls = 'output') {
+  const line = document.createElement('div');
+  line.className = `term-line ${cls}`;
+  line.innerHTML = html;
+  output.appendChild(line);
+  output.scrollTop = output.scrollHeight;
+}
+
+// Mock filesystem for demo
+const mockFiles = {
+  'clan/encoding-strategy': {
+    files: ['src/', 'src/freq_encoder.rs', 'src/dct_embed.rs', 'state.json', 'context.md'],
+    state: { depth: 4, pin: 'freq domain encoding survives recompression' },
+  },
+  'clan/channel-capacity': {
+    files: ['src/', 'src/capacity_calc.rs', 'benches/', 'benches/throughput.rs', 'state.json', 'context.md'],
+    state: { depth: 3, pin: '~240 bits per 1024x1024 image' },
+  },
+  'clan/error-correction': {
+    files: ['state.json', 'context.md'],
+    state: { depth: 1, pin: '' },
+  },
+};
+
+// Command handlers
+const commands = {
+  'ls': () => {
+    const mock = mockFiles[activeClan.branch];
+    if (mock) {
+      mock.files.forEach(f => {
+        termWrite(f, f.endsWith('/') ? 'info' : 'output');
+      });
+    }
+  },
+
+  'pwd': () => {
+    termWrite(activeClan.path, 'output');
+  },
+
+  'cat state.json': () => {
+    const mock = mockFiles[activeClan.branch];
+    if (mock) {
+      termWrite(JSON.stringify(mock.state, null, 2), 'output');
+    }
+  },
+
+  'git status': () => {
+    termWrite(`On branch ${activeClan.branch}`, 'info');
+    termWrite('nothing to commit, working tree clean', 'output');
+  },
+
+  'git log': () => {
+    termWrite(`* ${activeClan.hash}  (HEAD → ${activeClan.branch}) progress: d=${activeClan.depth}`, 'output');
+    termWrite(`* e1b3c7   code: implement encoder`, 'dim');
+    termWrite(`* 8a2f01   clan-start: ${activeClan.name}`, 'dim');
+    termWrite(`* bb5406   init: project created`, 'dim');
+  },
+
+  'gently status': () => {
+    termWrite('', '');
+    termWrite(`◆ OLO Guard`, 'success');
+    termWrite(`│ git: ${activeClan.hash}`, 'output');
+    termWrite(`│ gates: A● B● C● D● E◐ F● G○`, 'output');
+    termWrite('│', 'dim');
+    termWrite('│ ACTIVE CLANS:', 'output');
+    termWrite(`│   ◆ Encoding Strategy [d=4] "freq domain encoding" #a3f2`, 'success');
+    termWrite(`│   ◆ Channel Capacity [d=3] "~240 bits/img" #7b1e`, 'info');
+    termWrite(`│   ◆ Error Correction [d=1] "" #d4c8`, 'output');
+    termWrite('│ FROZEN:', 'dim');
+    termWrite('│   ❄ Blue Channel Math [d=8]', 'dim');
+    termWrite('│   ❄ JPEG Internals [d=6]', 'dim');
+    termWrite('', '');
+  },
+
+  'gently stamp': () => {
+    const gates = [];
+    document.querySelectorAll('.key.gate').forEach(g => {
+      gates.push(`${g.dataset.gate}${gateSym[g.dataset.state]}`);
+    });
+    termWrite(`[OLO|🌿${activeClan.branch}|📍${activeClan.depth}|⚡${stampState}|🔒${gates.join('')}|#${activeClan.hash}]`, 'success');
+  },
+
+  'gently windows': () => {
+    termWrite('◆ Blue+JPEG Synthesis (active)', 'success');
+    termWrite('  branch: window/blue+jpeg-synthesis | constants: 2', 'output');
+    termWrite('    ▒ Blue Channel: "blue verified"', 'dim');
+    termWrite('    ▒ JPEG Internals: "75% chroma lost"', 'dim');
+  },
+
+  'gently gate': () => {
+    document.querySelectorAll('.key.gate').forEach(g => {
+      termWrite(`  ${g.dataset.gate}${gateSym[g.dataset.state]}`, 'output');
+    });
+  },
+
+  'gently help': () => {
+    termWrite('', '');
+    termWrite('gently — AI development shell', 'info');
+    termWrite('', '');
+    termWrite('  gently status       Project tree', 'output');
+    termWrite('  gently stamp        Current stamp', 'output');
+    termWrite('  gently gate         View gates', 'output');
+    termWrite('  gently windows      List windows', 'output');
+    termWrite('  gently clan <n>     Add clan', 'output');
+    termWrite('  gently log          Git log', 'output');
+    termWrite('  gently help         This message', 'output');
+    termWrite('', '');
+  },
+
+  'gently log': () => commands['git log'](),
+
+  'claude': () => {
+    termWrite('Claude Code CLI v1.0', 'info');
+    termWrite(`Working directory: ${activeClan.path}`, 'output');
+    termWrite(`Branch: ${activeClan.branch}`, 'output');
+    termWrite('Type your instruction or Ctrl+C to exit.', 'dim');
+  },
+
+  'clear': () => {
+    output.innerHTML = '';
+  },
+
+  'help': () => {
+    termWrite('Built-in commands: ls, pwd, cat, git status, git log, clear', 'output');
+    termWrite('Gently commands: gently status|stamp|gate|windows|clan|log|help', 'output');
+    termWrite('Claude: claude (launches Claude Code CLI)', 'info');
+  },
+};
+
+function execCommand(raw) {
+  const cmd = raw.trim();
+  if (!cmd) return;
+
+  termHistory.push(cmd);
+  historyIdx = termHistory.length;
+
+  // Echo the command
+  termWrite(`${activeClan.name.toLowerCase().replace(/\s+/g, '-')} $ ${cmd}`, 'cmd');
+
+  // Find handler
+  const handler = commands[cmd] || commands[cmd.split(' ').slice(0, 2).join(' ')];
+  if (handler) {
+    handler();
+  } else if (cmd.startsWith('cd ')) {
+    termWrite(`(scope follows active clan — select in left shelf)`, 'dim');
+  } else if (cmd.startsWith('gently clan ')) {
+    const name = cmd.replace('gently clan ', '');
+    termWrite(`✓ Clan created: ${name}`, 'success');
+    termWrite(`  branch: clan/${name.toLowerCase().replace(/\s/g, '-')}`, 'output');
+  } else {
+    termWrite(`${cmd}: command not found (mock terminal — real in Electron)`, 'error');
+  }
+}
+
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    execCommand(input.value);
+    input.value = '';
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (historyIdx > 0) {
+      historyIdx--;
+      input.value = termHistory[historyIdx];
+    }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (historyIdx < termHistory.length - 1) {
+      historyIdx++;
+      input.value = termHistory[historyIdx];
+    } else {
+      historyIdx = termHistory.length;
+      input.value = '';
+    }
+  } else if (e.key === 'l' && e.ctrlKey) {
+    e.preventDefault();
+    output.innerHTML = '';
+  }
+});
+
+// Click on terminal area focuses input
+document.getElementById('term-area').addEventListener('click', () => {
+  document.getElementById('term-input').focus();
+});
+
+// Boot message
+function termBoot() {
+  termWrite('gently v0.1.0 — terminal scoped to active clan', 'dim');
+  termWrite(`branch: ${activeClan.branch}`, 'info');
+  termWrite(`cwd: ${activeClan.path}`, 'dim');
+  termWrite('type "help" or "gently help"', 'dim');
+  termWrite('', '');
+}
+termBoot();
+updateTermScope();
+
+/*
+  ═══════════════════════════════════════
+  GATES
+  ═══════════════════════════════════════
+*/
+function cycleGate(el) {
+  const current = el.dataset.state;
+  const idx = gateOrder.indexOf(current);
+  const next = gateOrder[(idx + 1) % gateOrder.length];
+  el.dataset.state = next;
+  el.className = `key gate ${next}`;
+  el.textContent = `${el.dataset.gate}${gateSym[next]}`;
+  updateStamp();
+}
+
+function cycleState() {
+  const states = ['OPEN', 'GATE', 'DONE'];
+  const idx = states.indexOf(stampState);
+  stampState = states[(idx + 1) % states.length];
+  document.getElementById('state-cycle').textContent = `⚡${stampState}`;
+  updateStamp();
+}
+
+function updateStamp() {
+  const gates = [];
+  document.querySelectorAll('.key.gate').forEach(g => {
+    gates.push(`${g.dataset.gate}${gateSym[g.dataset.state]}`);
+  });
+  const ts = new Date().toISOString().slice(5, 16).replace(/-/g, '').replace('T', 'T').replace(':', '');
+  const stamp = `[OLO|🌿${activeClan.branch}|📍${activeClan.depth}|⚡${stampState}|🔒${gates.join('')}|📌freq-domain|#${activeClan.hash}|⏱${ts}]`;
+  document.getElementById('stamp-display').textContent = stamp;
+}
+
+function copyStamp() {
+  const text = document.getElementById('stamp-display').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('stamp-display').style.color = '#fff';
+    setTimeout(() => { document.getElementById('stamp-display').style.color = ''; }, 300);
+  });
+}
+
+function pinPrompt() {
+  const pin = prompt('Set pin:');
+  if (pin) updateStamp();
+}
+
+function addClan() {
+  const name = prompt('Clan name:');
+  if (!name) return;
+  const id = name.toLowerCase().replace(/\s+/g, '-');
+  const hash = Math.random().toString(16).slice(2, 6);
+  const div = document.querySelector('.shelf-divider');
+  const item = document.createElement('div');
+  item.className = 'clan-item';
+  item.dataset.clan = id;
+  item.dataset.branch = `clan/${id}`;
+  item.dataset.path = `~/projects/olo-guard/worktrees/${id}`;
+  item.dataset.depth = '0';
+  item.dataset.hash = hash;
+  item.onclick = function() { selectClan(this); };
+  item.innerHTML = `
+    <div class="clan-dot" style="background:#${Math.floor(Math.random()*16777215).toString(16).padStart(6,'0')}"></div>
+    <span class="clan-name">${name}</span>
+    <span class="clan-depth">d=0</span>
+    <span class="clan-hash">#${hash}</span>`;
+  div.after(item);
+}
+
+/*
+  ═══════════════════════════════════════
+  KEYBOARD SHORTCUTS
+  ═══════════════════════════════════════
+*/
+document.addEventListener('keydown', (e) => {
+  // Don't intercept when terminal input is focused
+  if (document.activeElement === input) return;
+
+  // Tab = switch target
+  if (e.key === 'Tab') { e.preventDefault(); setTarget(currentTarget === 'focus' ? 'process' : 'focus'); }
+  // ` (backtick) = toggle terminal
+  if (e.key === '`' && !e.ctrlKey) { e.preventDefault(); setMode(currentMode === 'term' ? 'kb' : 'term'); }
+  // Ctrl+1/2/3 = mode switch
+  if (e.ctrlKey && e.key === '1') { e.preventDefault(); setMode('kb'); }
+  if (e.ctrlKey && e.key === '2') { e.preventDefault(); setMode('art'); }
+  if (e.ctrlKey && e.key === '3') { e.preventDefault(); setMode('term'); }
+});
+
+// Init
+updateStamp();
+</script>
+</body>
+</html>

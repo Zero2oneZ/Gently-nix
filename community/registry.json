@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-02-02T00:00:00Z",
+  "upstream": {
+    "repo": "github.com/gentlyos/gently-nix",
+    "contract": "GentForkXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+  },
+  "forks": [],
+  "extensions": [],
+  "notes": "This file mirrors the on-chain fork registry for offline verification."
+}

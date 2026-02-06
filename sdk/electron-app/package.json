@@ -1,0 +1,14 @@
+{
+  "name": "gently",
+  "version": "0.1.0",
+  "description": "Sovereignty-first AI development shell",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron ."
+  },
+  "dependencies": {
+    "electron": "^33.0.0"
+  },
+  "devDependencies": {}
+}

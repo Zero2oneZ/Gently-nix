@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OLO GUARD — Secure Terminal Layer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap');
+
+  :root {
+    --green-primary: #00ff41;
+    --green-dim: #00aa2a;
+    --green-glow: rgba(0, 255, 65, 0.15);
+    --blue-primary: rgba(30, 50, 255, 0.7);
+    --blue-block: rgba(8, 12, 60, 0.85);
+    --blue-dim: rgba(20, 30, 180, 0.4);
+    --blue-glow: rgba(30, 50, 255, 0.1);
+    --bg-void: #000000;
+    --bg-panel: #050508;
+    --border-dim: #0a1a0a;
+    --text-ghost: #1a1a2a;
+    --text-muted: #334;
+    --shift-speed: 80ms;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-void);
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+    color: var(--green-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: default;
+  }
+
+  /* ============================================
+     MASTER LAYOUT
+     ============================================ */
+  .shell {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    grid-template-rows: 40px 1fr 200px;
+    height: 100vh;
+    gap: 1px;
+    background: #0a0a12;
+  }
+
+  /* ============================================
+     TOP BAR — STATUS STRIP
+     ============================================ */
+  .topbar {
+    grid-column: 1 / -1;
+    background: var(--bg-panel);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    border-bottom: 1px solid #0a0f1a;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #333;
+  }
+
+  .topbar .logo {
+    color: var(--green-primary);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-shadow: 0 0 10px var(--green-glow);
+  }
+
+  .topbar .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green-primary);
+    box-shadow: 0 0 6px var(--green-primary);
+    animation: pulse-dot 2s infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .topbar .guard-level {
+    color: var(--blue-primary);
+    font-weight: 500;
+  }
+
+  .topbar .shift-counter {
+    margin-left: auto;
+    color: var(--green-dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ============================================
+     MAIN TERMINAL — THE SECURE DISPLAY
+     ============================================ */
+  .terminal {
+    background: var(--bg-void);
+    overflow-y: auto;
+    padding: 16px;
+    position: relative;
+  }
+
+  .terminal::before {
+    content: '';
+    position: fixed;
+    top: 40px; left: 0;
+    width: calc(100% - 281px);
+    height: calc(100% - 241px);
+    pointer-events: none;
+    z-index: 10;
+    /* Scanline effect — screen-only, degrades on capture */
+    background: repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 0, 40, 0.025) 2px,
+      rgba(0, 0, 40, 0.025) 4px
+    );
+  }
+
+  /* ============================================
+     TERMINAL LINES — BLUE BLOCK + GREEN TEXT
+     Each line is a blue block with green chars
+     that shift position per keystroke
+     ============================================ */
+  .term-line {
+    position: relative;
+    margin: 2px 0;
+    padding: 4px 8px;
+    font-size: 14px;
+    line-height: 1.6;
+    letter-spacing: 1px;
+    min-height: 24px;
+    transition: all var(--shift-speed) ease;
+  }
+
+  /* The blue block background per line */
+  .term-line .blue-block {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    background: var(--blue-block);
+    border-left: 2px solid var(--blue-dim);
+    z-index: 0;
+    transition: width var(--shift-speed) ease;
+    /* Blue block width = character count, shifts per entry */
+  }
+
+  /* Green text on top of blue block */
+  .term-line .text-content {
+    position: relative;
+    z-index: 1;
+    color: var(--green-primary);
+    text-shadow: 0 0 1px var(--green-glow);
+    -webkit-font-smoothing: none;
+  }
+
+  /* Line direction classes */
+  .term-line.dir-ltr .text-content { direction: ltr; text-align: left; }
+  .term-line.dir-rtl .text-content { direction: rtl; text-align: right; unicode-bidi: bidi-override; }
+
+  /* Character-level rendering */
+  .char-green {
+    color: var(--green-primary);
+    text-shadow: 0 0 2px var(--green-glow);
+  }
+
+  .char-blue {
+    color: var(--blue-primary);
+    text-shadow: 0 0 1px var(--blue-glow);
+  }
+
+  .char-shift {
+    display: inline-block;
+    transition: transform var(--shift-speed) ease, color var(--shift-speed) ease;
+  }
+
+  /* Per-character shift states (cycled on each keystroke) */
+  .shift-0 { transform: translateY(0px); }
+  .shift-1 { transform: translateY(-1px); }
+  .shift-2 { transform: translateY(1px); }
+  .shift-3 { transform: translateY(0px) translateX(0.5px); }
+
+  /* Prompt */
+  .prompt-marker {
+    color: var(--blue-primary);
+    font-weight: 700;
+    margin-right: 8px;
+  }
+
+  .cursor-block {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    background: var(--green-primary);
+    animation: blink-cursor 1s step-end infinite;
+    vertical-align: text-bottom;
+    box-shadow: 0 0 4px var(--green-glow);
+  }
+
+  @keyframes blink-cursor {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ============================================
+     RIGHT PANEL — GUARD MONITOR
+     ============================================ */
+  .guard-panel {
+    background: var(--bg-panel);
+    border-left: 1px solid #0a0f1a;
+    overflow-y: auto;
+    padding: 12px;
+    font-size: 10px;
+  }
+
+  .guard-section {
+    margin-bottom: 16px;
+  }
+
+  .guard-section-title {
+    color: #333;
+    letter-spacing: 3px;
+    font-size: 8px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #111;
+  }
+
+  /* Script layers in guard panel */
+  .guard-script-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+    padding: 4px;
+    font-size: 10px;
+  }
+
+  .guard-script-label {
+    width: 40px;
+    color: #444;
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+
+  .guard-script-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+
+  .guard-script-val {
+    width: 36px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: #555;
+    font-size: 9px;
+  }
+
+  /* Gematria bars */
+  .guard-bar {
+    height: 3px;
+    margin: 3px 0;
+    border-radius: 1px;
+    position: relative;
+    background: #111;
+    overflow: hidden;
+  }
+
+  .guard-bar-fill {
+    height: 100%;
+    border-radius: 1px;
+    transition: width 200ms ease;
+  }
+
+  .guard-bar-fill.green { background: var(--green-primary); box-shadow: 0 0 4px var(--green-glow); }
+  .guard-bar-fill.blue { background: var(--blue-primary); box-shadow: 0 0 4px var(--blue-glow); }
+
+  /* Sephira display */
+  .sephira-display {
+    text-align: center;
+    padding: 12px;
+    border: 1px solid #111;
+    margin: 8px 0;
+    background: rgba(0, 0, 20, 0.3);
+  }
+
+  .sephira-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--blue-primary);
+    letter-spacing: 3px;
+    text-shadow: 0 0 15px var(--blue-glow);
+  }
+
+  .sephira-english {
+    font-size: 9px;
+    color: #444;
+    letter-spacing: 2px;
+    margin-top: 2px;
+  }
+
+  .sephira-number {
+    font-size: 32px;
+    font-weight: 300;
+    color: rgba(30, 50, 255, 0.4);
+    margin: 4px 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Name of God display */
+  .name-display {
+    text-align: center;
+    padding: 8px;
+    margin: 8px 0;
+  }
+
+  .name-hebrew {
+    font-size: 28px;
+    color: var(--blue-primary);
+    letter-spacing: 6px;
+    text-shadow: 0 0 20px var(--blue-glow);
+  }
+
+  .name-info {
+    font-size: 8px;
+    color: #444;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  /* Direction indicator */
+  .dir-indicator {
+    display: flex;
+    gap: 2px;
+    margin: 6px 0;
+  }
+
+  .dir-block {
+    width: 12px;
+    height: 6px;
+    border-radius: 1px;
+    transition: background 150ms ease;
+  }
+
+  .dir-block.ltr { background: var(--green-dim); }
+  .dir-block.rtl { background: var(--blue-dim); }
+  .dir-block.active { box-shadow: 0 0 4px currentColor; }
+
+  /* YHWH wheel */
+  .yhwh-wheel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin: 8px 0;
+  }
+
+  .yhwh-cell {
+    padding: 6px;
+    text-align: center;
+    border: 1px solid #111;
+    font-size: 9px;
+  }
+
+  .yhwh-cell .val { font-size: 14px; font-weight: 700; }
+  .yhwh-cell .label { font-size: 7px; color: #444; letter-spacing: 1px; }
+
+  /* ============================================
+     BOTTOM PANEL — INPUT + ENCODED OUTPUT
+     ============================================ */
+  .bottom-panel {
+    grid-column: 1 / -1;
+    background: var(--bg-panel);
+    border-top: 1px solid #0a0f1a;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 1px;
+  }
+
+  .bottom-channel {
+    padding: 12px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bottom-channel-label {
+    font-size: 8px;
+    color: #333;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+
+  .bottom-channel-text {
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-all;
+    letter-spacing: 2px;
+  }
+
+  .ch-green { color: var(--green-primary); }
+  .ch-blue { color: var(--blue-primary); }
+  .ch-latin { color: var(--green-dim); }
+  .ch-hebrew { color: var(--blue-primary); }
+  .ch-greek-r { color: rgba(0, 200, 100, 0.7); }
+
+  /* Adversarial noise overlay on blue channels */
+  .noise-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    opacity: 0.06;
+    mix-blend-mode: screen;
+    background: repeating-conic-gradient(
+      rgba(0,0,255,0.08) 0deg,
+      transparent 0.5deg,
+      transparent 2deg,
+      rgba(0,0,255,0.08) 2.5deg
+    );
+    animation: noise-jitter 60ms infinite steps(4);
+  }
+
+  @keyframes noise-jitter {
+    0%   { transform: translate(0,0) rotate(0deg); }
+    25%  { transform: translate(-1px,1px) rotate(0.5deg); }
+    50%  { transform: translate(1px,-1px) rotate(-0.5deg); }
+    75%  { transform: translate(-1px,-1px) rotate(0.25deg); }
+    100% { transform: translate(0,0) rotate(0deg); }
+  }
+
+  /* ============================================
+     CAPTURE SIMULATION OVERLAY
+     ============================================ */
+  .capture-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 100;
+    background: rgba(0,0,0,0.9);
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .capture-overlay.visible { display: flex; }
+
+  .capture-overlay canvas {
+    border: 1px solid #222;
+    max-width: 90%;
+    max-height: 70%;
+  }
+
+  .capture-label {
+    color: #444;
+    font-size: 11px;
+    letter-spacing: 3px;
+  }
+
+  .capture-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: #555;
+    font-size: 12px;
+    cursor: pointer;
+    letter-spacing: 2px;
+  }
+
+  /* ============================================
+     SCROLLBAR
+     ============================================ */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg-void); }
+  ::-webkit-scrollbar-thumb { background: #111; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #1a1a1a; }
+
+  /* Hidden textarea for capturing keystrokes */
+  .hidden-input {
+    position: fixed;
+    top: -100px;
+    left: -100px;
+    opacity: 0;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="shell" id="shell">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <span class="logo">OLO GUARD</span>
+    <span class="status-dot"></span>
+    <span>SECURE TERMINAL</span>
+    <span class="guard-level">▣ LEVEL 5 — BOUSTROPHEDON + RGB SPLIT</span>
+    <span id="mode-indicator" style="color: #555;">LTR</span>
+    <span class="shift-counter" id="shift-counter">SHIFT: 0000</span>
+  </div>
+
+  <!-- MAIN TERMINAL -->
+  <div class="terminal" id="terminal" tabindex="0">
+    <!-- Lines rendered here -->
+  </div>
+
+  <!-- RIGHT: GUARD PANEL -->
+  <div class="guard-panel" id="guard-panel">
+
+    <div class="guard-section">
+      <div class="guard-section-title">⟁ guard status</div>
+      <div style="display: flex; gap: 8px; align-items: center; margin: 4px 0;">
+        <span style="color: var(--green-primary); font-size: 9px;">● ACTIVE</span>
+        <span style="color: #333; font-size: 8px;" id="guard-fps">60fps</span>
+      </div>
+      <div class="dir-indicator" id="dir-indicator"></div>
+    </div>
+
+    <div class="guard-section">
+      <div class="guard-section-title">sephira</div>
+      <div class="sephira-display">
+        <div class="sephira-number" id="sephira-num">—</div>
+        <div class="sephira-name" id="sephira-name">—</div>
+        <div class="sephira-english" id="sephira-english">—</div>
+      </div>
+    </div>
+
+    <div class="guard-section">
+      <div class="guard-section-title">72 name</div>
+      <div class="name-display">
+        <div class="name-hebrew" id="name-hebrew">—</div>
+        <div class="name-info" id="name-info">—</div>
+      </div>
+    </div>
+
+    <div class="guard-section">
+      <div class="guard-section-title">gematria channels</div>
+      <div id="gematria-channels"></div>
+    </div>
+
+    <div class="guard-section">
+      <div class="guard-section-title">yhwh relationship</div>
+      <div class="yhwh-wheel" id="yhwh-wheel">
+        <div class="yhwh-cell"><div class="val" style="color: #f64;">—</div><div class="label">÷ 26</div></div>
+        <div class="yhwh-cell"><div class="val" style="color: #4af;">—</div><div class="label">mod 72</div></div>
+        <div class="yhwh-cell"><div class="val" style="color: #4f8;">—</div><div class="label">÷ Av</div></div>
+        <div class="yhwh-cell"><div class="val" style="color: #a8f;">—</div><div class="label">remainder</div></div>
+      </div>
+    </div>
+
+    <div class="guard-section">
+      <div class="guard-section-title">script layers</div>
+      <div id="script-layers"></div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM: 4-CHANNEL ENCODED OUTPUT -->
+  <div class="bottom-panel">
+    <div class="bottom-channel">
+      <div class="bottom-channel-label">GREEK L→R</div>
+      <div class="bottom-channel-text ch-green" id="out-greek-ltr"></div>
+    </div>
+    <div class="bottom-channel">
+      <div class="bottom-channel-label">LATIN L→R</div>
+      <div class="bottom-channel-text ch-latin" id="out-latin"></div>
+    </div>
+    <div class="bottom-channel" style="position: relative;">
+      <div class="noise-overlay"></div>
+      <div class="bottom-channel-label">GREEK R→L (ARCHAIC)</div>
+      <div class="bottom-channel-text ch-greek-r" id="out-greek-rtl"></div>
+    </div>
+    <div class="bottom-channel" style="position: relative;">
+      <div class="noise-overlay"></div>
+      <div class="bottom-channel-label">HEBREW R→L</div>
+      <div class="bottom-channel-text ch-hebrew" id="out-hebrew"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Capture simulation overlay -->
+<div class="capture-overlay" id="capture-overlay">
+  <div class="capture-close" onclick="closeCaptureDemo()">[ CLOSE ]</div>
+  <div class="capture-label">◧ SIMULATED AI SCREEN CAPTURE — WHAT THE SPYWARE EXTRACTS</div>
+  <canvas id="capture-canvas" width="800" height="500"></canvas>
+  <div class="capture-label" style="color: #622;">BLUE CHANNEL DATA DESTROYED • DIRECTION SCRAMBLED • GEMATRIA LOST</div>
+</div>
+
+<textarea class="hidden-input" id="hidden-input"></textarea>
+
+<script>
+// ============================================================
+// TRANSLITERATION MAPS
+// ============================================================
+const ENG_GREEK = {
+  'a':'α','b':'β','c':'κ','d':'δ','e':'ε','f':'φ','g':'γ','h':'η',
+  'i':'ι','j':'ξ','k':'κ','l':'λ','m':'μ','n':'ν','o':'ο','p':'π',
+  'q':'κ','r':'ρ','s':'σ','t':'τ','u':'υ','v':'β','w':'ω','x':'ξ',
+  'y':'ψ','z':'ζ',' ':' '
+};
+const ENG_HEBREW = {
+  'a':'א','b':'ב','c':'כ','d':'ד','e':'א','f':'פ','g':'ג','h':'ה',
+  'i':'י','j':'ג','k':'כ','l':'ל','m':'מ','n':'נ','o':'ע','p':'פ',
+  'q':'ק','r':'ר','s':'ס','t':'ת','u':'ו','v':'ו','w':'ו','x':'ק',
+  'y':'י','z':'ז',' ':' '
+};
+const ENG_LATIN = {
+  'a':'A','b':'B','c':'C','d':'D','e':'E','f':'F','g':'G','h':'H',
+  'i':'I','j':'I','k':'C','l':'L','m':'M','n':'N','o':'O','p':'P',
+  'q':'Q','r':'R','s':'S','t':'T','u':'V','v':'V','w':'VV','x':'X',
+  'y':'Y','z':'Z',' ':' '
+};
+
+const HEBREW_VALS = {'א':1,'ב':2,'ג':3,'ד':4,'ה':5,'ו':6,'ז':7,'ח':8,'ט':9,'י':10,'כ':20,'ל':30,'מ':40,'נ':50,'ס':60,'ע':70,'פ':80,'צ':90,'ק':100,'ר':200,'ש':300,'ת':400};
+const GREEK_VALS = {'α':1,'β':2,'γ':3,'δ':4,'ε':5,'ζ':7,'η':8,'θ':9,'ι':10,'κ':20,'λ':30,'μ':40,'ν':50,'ξ':60,'ο':70,'π':80,'ρ':100,'σ':200,'τ':300,'υ':400,'φ':500,'χ':600,'ψ':700,'ω':800};
+
+const SEPHIROT = {
+  1:{name:'Keter',en:'Crown'},2:{name:'Chokmah',en:'Wisdom'},3:{name:'Binah',en:'Understanding'},
+  4:{name:'Chesed',en:'Mercy'},5:{name:'Gevurah',en:'Severity'},6:{name:'Tiferet',en:'Beauty'},
+  7:{name:'Netzach',en:'Victory'},8:{name:'Hod',en:'Splendor'},9:{name:'Yesod',en:'Foundation'}
+};
+
+const NAMES_72 = [
+  ['והו','Vehu','Vehuiah'],['ילי','Yeli','Jeliel'],['סיט','Sit','Sitael'],
+  ['עלם','Alam','Elemiah'],['מהש','Mahash','Mahasiah'],['ללה','Lelah','Lelahel'],
+  ['אכא','Aka','Achaiah'],['כהת','Kahat','Cahethel'],['הזי','Hezi','Haziel'],
+  ['אלד','Alad','Aladiah'],['לאו','Lav','Lauviah'],['ההע','Haha','Hahaiah'],
+  ['יזל','Yezal','Iezalel'],['מבה','Mebah','Mebahel'],['הרי','Hari','Hariel'],
+  ['הקם','Hakam','Hekamiah'],['לאו','Lav','Lauviah II'],['כלי','Kali','Caliel'],
+  ['לוו','Luv','Leuviah'],['פהל','Pahal','Pahaliah'],['נלך','Nelak','Nelchael'],
+  ['ייי','Yeyay','Yeiayel'],['מלה','Melah','Melahel'],['חהו','Chahav','Haheuiah'],
+  ['נתה','Natah','Nith-Haiah'],['האא','Haaa','Haaiah'],['ירת','Yerat','Yerathel'],
+  ['שאה','Shaah','Seheiah'],['ריי','Reyay','Reiyel'],['אום','Aom','Omael'],
+  ['לכב','Lekav','Lecabel'],['ושר','Vashar','Vasariah'],['יחו','Yechav','Yehuiah'],
+  ['להח','Lahach','Lehahiah'],['כוק','Kavak','Chavaquiah'],['מנד','Menad','Menadel'],
+  ['אני','Ani','Aniel'],['חעם','Chaam','Haamiah'],['רהע','Rahaa','Rehael'],
+  ['ייז','Yeyaz','Ieiazel'],['ההה','Hahah','Hahahel'],['מיכ','Mik','Mikael'],
+  ['וול','Veval','Veuliah'],['ילה','Yelah','Yelahiah'],['סאל','Saal','Sealiah'],
+  ['ערי','Ari','Ariel'],['עשל','Ashal','Asaliah'],['מיה','Miyah','Mihael'],
+  ['והו','Vehu','Vehuel'],['דני','Dani','Daniel'],['החש','Hachash','Hahasiah'],
+  ['עמם','Amam','Imamiah'],['ננא','Nana','Nanael'],['נית','Nit','Nithael'],
+  ['מבה','Mebah','Mebahiah'],['פוי','Poy','Poyel'],['נמם','Nemam','Nemamiah'],
+  ['ייל','Yeyel','Yeialel'],['הרח','Harach','Harahel'],['מצר','Matzar','Mitzrael'],
+  ['ומב','Vamab','Umabel'],['יהה','Yahah','Iahhel'],['ענו','Anav','Anauel'],
+  ['מחי','Mechi','Mehiel'],['דמב','Damab','Damabiah'],['מנק','Manak','Manakel'],
+  ['איע','Aya','Eyael'],['חבו','Chabav','Habuhiah'],['ראה','Raah','Rochel'],
+  ['יבם','Yabam','Jabamiah'],['היי','Hayay','Haiyael'],['מום','Mum','Mumiah']
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let lines = []; // Array of { text: string, type: 'input'|'output'|'system' }
+let currentInput = '';
+let shiftCount = 0;
+let lineDirections = []; // track boustrophedon per line
+
+// ============================================================
+// TRANSLITERATION
+// ============================================================
+function translit(text, map) {
+  return [...text.toLowerCase()].map(c => map[c] || c).join('');
+}
+
+function gematria(text, vals) {
+  return [...text].reduce((s, c) => s + (vals[c] || 0), 0);
+}
+
+function reduceDigit(n) {
+  while (n > 9) n = [...String(n)].reduce((s, d) => s + +d, 0);
+  return n;
+}
+
+// ============================================================
+// LINE RENDERING
+// ============================================================
+function getLineDir(lineIndex) {
+  // Boustrophedon: alternate LTR/RTL
+  return lineIndex % 2 === 0 ? 'ltr' : 'rtl';
+}
+
+function renderChar(ch, charIndex, lineShift) {
+  // Determine green vs blue per character
+  // Vowels + verification chars → blue channel
+  // Consonants + structure → green channel
+  const vowels = 'aeiouAEIOU αεηιουω אהויו';
+  const isBlue = vowels.includes(ch);
+  const shiftClass = `shift-${(charIndex + lineShift) % 4}`;
+  const colorClass = isBlue ? 'char-blue' : 'char-green';
+
+  if (ch === ' ') return '<span class="char-shift ' + shiftClass + '">&nbsp;</span>';
+  return `<span class="char-shift ${shiftClass} ${colorClass}">${ch}</span>`;
+}
+
+function renderLine(text, lineIndex, type) {
+  const dir = getLineDir(lineIndex);
+  const lineShift = shiftCount % 4;
+  
+  // Build char-by-char with shift
+  let displayText = text;
+  if (dir === 'rtl' && type !== 'system') {
+    // Reverse for RTL display (boustrophedon)
+    displayText = [...text].reverse().join('');
+  }
+
+  const chars = [...displayText].map((ch, i) => renderChar(ch, i, lineShift)).join('');
+
+  // Blue block width proportional to text length
+  const blockWidth = Math.min(text.length * 9 + 20, 600);
+
+  let promptHtml = '';
+  if (type === 'input') {
+    promptHtml = `<span class="prompt-marker">▸</span>`;
+  } else if (type === 'system') {
+    promptHtml = `<span class="prompt-marker" style="color: #333;">⟁</span>`;
+  }
+
+  return `
+    <div class="term-line dir-${dir}">
+      <div class="blue-block" style="width: ${blockWidth}px;"></div>
+      <div class="text-content">
+        ${promptHtml}${chars}
+      </div>
+    </div>
+  `;
+}
+
+function renderTerminal() {
+  const terminal = document.getElementById('terminal');
+  let html = '';
+
+  // System intro
+  html += renderLine('OLO GUARD v1.0 — Adversarial Secure Terminal', 0, 'system');
+  html += renderLine('Boustrophedon RGB Split Active • Blue Channel Guard Enabled', 1, 'system');
+  html += renderLine('Type to enter. Each keystroke shifts the defense layer.', 2, 'system');
+  html += renderLine('', 3, 'system');
+
+  const baseIdx = 4;
+
+  // Render history
+  lines.forEach((line, i) => {
+    html += renderLine(line.text, baseIdx + i, line.type);
+  });
+
+  // Current input line with cursor
+  const curIdx = baseIdx + lines.length;
+  const dir = getLineDir(curIdx);
+  const lineShift = shiftCount % 4;
+  
+  let displayInput = currentInput;
+  if (dir === 'rtl') {
+    displayInput = [...currentInput].reverse().join('');
+  }
+
+  const chars = [...displayInput].map((ch, i) => renderChar(ch, i, lineShift)).join('');
+  const blockWidth = Math.min(currentInput.length * 9 + 60, 600);
+
+  html += `
+    <div class="term-line dir-${dir}">
+      <div class="blue-block" style="width: ${blockWidth}px;"></div>
+      <div class="text-content">
+        <span class="prompt-marker">▸</span>${chars}<span class="cursor-block"></span>
+      </div>
+    </div>
+  `;
+
+  terminal.innerHTML = html;
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+// ============================================================
+// GUARD PANEL UPDATE
+// ============================================================
+function updateGuardPanel(text) {
+  if (!text) text = currentInput;
+  if (!text) {
+    return;
+  }
+
+  const greek = translit(text, ENG_GREEK);
+  const hebrew = translit(text, ENG_HEBREW);
+  const latin = translit(text, ENG_LATIN);
+
+  const grkVal = gematria(greek, GREEK_VALS);
+  const hebVal = gematria(hebrew, HEBREW_VALS);
+  const latVal = [...latin.toLowerCase()].reduce((s, c) => {
+    const v = c.charCodeAt(0);
+    return s + (v >= 97 && v <= 122 ? v - 96 : 0);
+  }, 0);
+
+  const total = grkVal + latVal + hebVal;
+  const totalRed = reduceDigit(total);
+  const hebRed = reduceDigit(hebVal || 1);
+
+  // Sephira
+  const seph = SEPHIROT[totalRed];
+  document.getElementById('sephira-num').textContent = total || '—';
+  document.getElementById('sephira-name').textContent = seph ? seph.name : '—';
+  document.getElementById('sephira-english').textContent = seph ? seph.en : '—';
+
+  // 72 Name
+  const nameIdx = hebVal > 0 ? ((hebVal % 72) || 72) : 0;
+  if (nameIdx > 0 && nameIdx <= 72) {
+    const n = NAMES_72[nameIdx - 1];
+    document.getElementById('name-hebrew').textContent = n[0];
+    document.getElementById('name-info').textContent = `#${nameIdx} ${n[1]} — ${n[2]}`;
+  }
+
+  // Gematria channels
+  const maxVal = Math.max(grkVal, latVal, hebVal, 1);
+  document.getElementById('gematria-channels').innerHTML = `
+    <div class="guard-script-row">
+      <span class="guard-script-label">GRK</span>
+      <div class="guard-bar" style="flex:1;"><div class="guard-bar-fill green" style="width:${grkVal/maxVal*100}%"></div></div>
+      <span class="guard-script-val" style="color: var(--green-primary);">${grkVal}</span>
+    </div>
+    <div class="guard-script-row">
+      <span class="guard-script-label">LAT</span>
+      <div class="guard-bar" style="flex:1;"><div class="guard-bar-fill green" style="width:${latVal/maxVal*100}%; opacity: 0.6;"></div></div>
+      <span class="guard-script-val" style="color: var(--green-dim);">${latVal}</span>
+    </div>
+    <div class="guard-script-row">
+      <span class="guard-script-label">HEB</span>
+      <div class="guard-bar" style="flex:1;"><div class="guard-bar-fill blue" style="width:${hebVal/maxVal*100}%"></div></div>
+      <span class="guard-script-val" style="color: var(--blue-primary);">${hebVal}</span>
+    </div>
+    <div style="text-align: right; font-size: 8px; color: #333; margin-top: 4px;">
+      Σ ${total} → ${totalRed}
+    </div>
+  `;
+
+  // YHWH
+  const yhwhCells = document.getElementById('yhwh-wheel').querySelectorAll('.val');
+  yhwhCells[0].textContent = hebVal > 0 ? (hebVal / 26).toFixed(1) : '—';
+  yhwhCells[1].textContent = hebVal > 0 ? (hebVal % 72) || 72 : '—';
+  yhwhCells[2].textContent = hebVal > 0 ? (hebVal / 72).toFixed(1) : '—';
+  yhwhCells[3].textContent = hebVal > 0 ? hebVal % 26 : '—';
+
+  // Script layers
+  document.getElementById('script-layers').innerHTML = `
+    <div class="guard-script-row">
+      <span class="guard-script-label" style="color: var(--green-primary);">→</span>
+      <span class="guard-script-text" style="color: var(--green-primary);">${greek}</span>
+    </div>
+    <div class="guard-script-row">
+      <span class="guard-script-label" style="color: var(--green-dim);">→</span>
+      <span class="guard-script-text" style="color: var(--green-dim);">${latin}</span>
+    </div>
+    <div class="guard-script-row">
+      <span class="guard-script-label" style="color: rgba(0,200,100,0.7);">←</span>
+      <span class="guard-script-text" style="color: rgba(0,200,100,0.7);">${[...greek].reverse().join('')}</span>
+    </div>
+    <div class="guard-script-row">
+      <span class="guard-script-label" style="color: var(--blue-primary);">←</span>
+      <span class="guard-script-text" style="color: var(--blue-primary);">${[...hebrew].reverse().join('')}</span>
+    </div>
+  `;
+
+  // Bottom channels
+  document.getElementById('out-greek-ltr').textContent = greek;
+  document.getElementById('out-latin').textContent = latin;
+  document.getElementById('out-greek-rtl').textContent = [...greek].reverse().join('');
+  document.getElementById('out-hebrew').textContent = [...hebrew].reverse().join('');
+
+  // Direction indicator
+  const totalLines = lines.length + 5;
+  let dirHtml = '';
+  for (let i = 0; i < Math.min(totalLines, 20); i++) {
+    const d = getLineDir(i);
+    const active = i === totalLines - 1 ? ' active' : '';
+    dirHtml += `<div class="dir-block ${d}${active}"></div>`;
+  }
+  document.getElementById('dir-indicator').innerHTML = dirHtml;
+
+  // Mode indicator
+  const curDir = getLineDir(4 + lines.length);
+  document.getElementById('mode-indicator').textContent = curDir.toUpperCase();
+  document.getElementById('mode-indicator').style.color = curDir === 'ltr' ? 'var(--green-dim)' : 'var(--blue-dim)';
+}
+
+// ============================================================
+// SIMULATED RESPONSES
+// ============================================================
+function processCommand(input) {
+  const lower = input.toLowerCase().trim();
+
+  if (lower === 'help') {
+    return [
+      'OLO GUARD COMMANDS:',
+      '  help        — this message',
+      '  status      — show guard status',
+      '  capture     — simulate AI screen capture',
+      '  clear       — clear terminal',
+      '  [anything]  — encoded through guard layers'
+    ];
+  }
+
+  if (lower === 'status') {
+    const heb = translit(input, ENG_HEBREW);
+    const hv = gematria(heb, HEBREW_VALS);
+    return [
+      `Guard: ACTIVE | Shift: ${shiftCount} | Direction: BOUSTROPHEDON`,
+      `Layers: Greek(LTR) + Latin(LTR) + Greek(RTL) + Hebrew(RTL)`,
+      `Channel: GREEN=structure BLUE=verification`,
+      `Blue degradation on capture: ENABLED`,
+      `Noise layer: 60ms jitter cycle`
+    ];
+  }
+
+  if (lower === 'capture') {
+    setTimeout(showCaptureDemo, 100);
+    return ['Simulating AI screen capture...'];
+  }
+
+  if (lower === 'clear') {
+    lines = [];
+    return [];
+  }
+
+  // Default: echo through the guard
+  const heb = translit(input, ENG_HEBREW);
+  const hv = gematria(heb, HEBREW_VALS);
+  const hr = reduceDigit(hv || 1);
+  const nameIdx = hv > 0 ? ((hv % 72) || 72) : 1;
+  const name = NAMES_72[nameIdx - 1];
+  const seph = SEPHIROT[hr];
+
+  return [
+    `GUARD: "${input}" → ${name[0]} (${name[1]}) #${nameIdx}`,
+    `  Gematria: ${hv} → ${hr} ${seph ? seph.name : ''} | YHWH: ${(hv/26).toFixed(2)}`
+  ];
+}
+
+// ============================================================
+// CAPTURE DEMO
+// ============================================================
+function showCaptureDemo() {
+  const overlay = document.getElementById('capture-overlay');
+  const canvas = document.getElementById('capture-canvas');
+  const ctx = canvas.getContext('2d');
+
+  overlay.classList.add('visible');
+
+  // Simulate degraded capture
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 800, 500);
+
+  ctx.font = '12px monospace';
+
+  // Show what AI sees — green survives (partially), blue destroyed
+  ctx.fillStyle = '#00aa2a';
+  ctx.globalAlpha = 0.7;
+  ctx.fillText('◧ CAPTURED FRAME — AI EXTRACTION ATTEMPT', 20, 30);
+
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = '#006611';
+
+  // Render lines with degradation
+  let y = 60;
+  const allText = ['OLO GUARD v1.0', ...lines.map(l => l.text), currentInput];
+
+  allText.forEach((text, i) => {
+    if (!text) return;
+
+    const dir = getLineDir(i);
+    const greek = translit(text, ENG_GREEK);
+
+    // Green channel survives partially but scrambled
+    ctx.globalAlpha = 0.3 + Math.random() * 0.3;
+    ctx.fillStyle = `rgb(0, ${100 + Math.random() * 80}, ${20 + Math.random() * 20})`;
+
+    // Direction confusion
+    let displayText;
+    if (dir === 'rtl') {
+      // AI tries to read RTL text as LTR = garbage
+      displayText = [...greek].reverse().join('');
+      // Add random direction artifacts
+      displayText = displayText.split('').map((c, j) =>
+        Math.random() > 0.7 ? String.fromCharCode(c.charCodeAt(0) + Math.floor(Math.random()*3)) : c
+      ).join('');
+    } else {
+      displayText = greek;
+      // Random degradation
+      displayText = displayText.split('').map((c, j) =>
+        Math.random() > 0.8 ? '░' : c
+      ).join('');
+    }
+
+    ctx.fillText(`${dir === 'ltr' ? '→' : '←'} ${displayText}`, 20, y);
+
+    // Blue channel — heavily degraded (barely visible)
+    ctx.globalAlpha = 0.05;
+    ctx.fillStyle = `rgb(${Math.random()*20}, ${Math.random()*20}, ${50 + Math.random()*30})`;
+    const hebrew = translit(text, ENG_HEBREW);
+    ctx.fillText(hebrew, 400, y);
+
+    y += 22;
+  });
+
+  // Noise artifacts
+  for (let i = 0; i < 500; i++) {
+    ctx.globalAlpha = Math.random() * 0.08;
+    ctx.fillStyle = `rgb(${Math.random()*30}, ${Math.random()*30}, ${Math.random()*80})`;
+    ctx.fillRect(Math.random()*800, Math.random()*500, Math.random()*4, Math.random()*2);
+  }
+
+  // "Extraction failed" indicators
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#622';
+  ctx.font = '10px monospace';
+  ctx.fillText('✗ DIRECTION PARSE FAILED — mixed LTR/RTL in single frame', 20, y + 30);
+  ctx.fillText('✗ BLUE CHANNEL: 94% data loss after JPEG compression', 20, y + 48);
+  ctx.fillText('✗ SCRIPT IDENTIFICATION: 4 scripts detected, no dominant', 20, y + 66);
+  ctx.fillText('✗ GEMATRIA VERIFICATION CHANNEL: not extractable', 20, y + 84);
+  ctx.fillText('✗ TEMPORAL COHERENCE: frame captured mid-shift cycle', 20, y + 102);
+  ctx.fillText(`✗ CONFIDENCE: <12% — below extraction threshold`, 20, y + 120);
+}
+
+function closeCaptureDemo() {
+  document.getElementById('capture-overlay').classList.remove('visible');
+}
+
+// ============================================================
+// INPUT HANDLING
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  // Close capture overlay on any key
+  if (document.getElementById('capture-overlay').classList.contains('visible')) {
+    closeCaptureDemo();
+    return;
+  }
+
+  if (e.key === 'Enter') {
+    if (currentInput.trim()) {
+      // Add input line
+      lines.push({ text: currentInput, type: 'input' });
+
+      // Process and add response
+      const responses = processCommand(currentInput);
+      responses.forEach(r => lines.push({ text: r, type: 'output' }));
+
+      currentInput = '';
+    }
+  } else if (e.key === 'Backspace') {
+    currentInput = currentInput.slice(0, -1);
+    e.preventDefault();
+  } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+    currentInput += e.key;
+    shiftCount++;
+    e.preventDefault();
+  } else {
+    return;
+  }
+
+  // Update shift counter
+  document.getElementById('shift-counter').textContent = `SHIFT: ${String(shiftCount).padStart(4, '0')}`;
+
+  renderTerminal();
+  updateGuardPanel(currentInput || (lines.length > 0 ? lines[lines.length - 1].text : ''));
+});
+
+// Focus handling
+document.getElementById('terminal').addEventListener('click', () => {
+  document.getElementById('terminal').focus();
+});
+
+// Initial render
+renderTerminal();
+updateGuardPanel('olo guard');
+
+// Keep terminal focused
+document.getElementById('terminal').focus();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gently Shell v3 — Focus + Process + Proton</title>
+<style>
+/*
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  THREE CHROMIUM VIEWS                                        ║
+  ║                                                              ║
+  ║  FOCUS   = claude.ai  (primary conversation)                ║
+  ║  PROCESS = claude.ai  (parallel conversation)               ║
+  ║  PROTON  = workbench  (app builder with live preview)       ║
+  ║                                                              ║
+  ║  These are NOT three chat panes.                             ║
+  ║  Two chat + one build. Different KINDS of pane.             ║
+  ║                                                              ║
+  ║  LAYOUT MODES (cycle with Ctrl+L):                          ║
+  ║                                                              ║
+  ║  CHAT    ┌─────┬─────┐   Two chat panes side by side       ║
+  ║          │FOCUS│PROC │   Standard mode. Talk to Claude.     ║
+  ║          └─────┴─────┘                                      ║
+  ║                                                              ║
+  ║  BUILD   ┌─────┬─────┐   Chat left, workbench right        ║
+  ║          │FOCUS│PROTO│   Talk + build simultaneously.       ║
+  ║          └─────┴─────┘                                      ║
+  ║                                                              ║
+  ║  FORGE   ┌───────────┐   Workbench full-width              ║
+  ║          │  PROTON    │   Maximum build real estate.        ║
+  ║          └───────────┘                                      ║
+  ║                                                              ║
+  ║  TRIO    ┌───┬───┬───┐   All three visible                 ║
+  ║          │FOC│PRO│PRT│   Overview mode. Everything at once. ║
+  ║          └───┴───┴───┘                                      ║
+  ║                                                              ║
+  ║  DEPTH CALCULATION:                                          ║
+  ║                                                              ║
+  ║  Depth 0: NixOS (real OS)                                   ║
+  ║  Depth 1: Gently Shell (this Electron app)                  ║
+  ║  Depth 2: Proton BrowserView (dev workbench)               ║
+  ║  Depth 3: iframe inside Proton (the app being built)       ║
+  ║  Depth 4: claude.ai inside Focus/Process (conversations)   ║
+  ║                                                              ║
+  ║  Each depth sandboxed from the one above.                   ║
+  ║  Proton can't crash Focus. Focus can't crash Proton.       ║
+  ║  The app preview can't crash the workbench.                 ║
+  ║  Nothing can crash the shell.                                ║
+  ║                                                              ║
+  ║  GRID MATH:                                                  ║
+  ║  cols: shelf-w | dynamic panes | shelf-w                    ║
+  ║  Pane columns change per layout mode.                       ║
+  ║  Shelves NEVER change. Constants bar NEVER changes.         ║
+  ║  Bottom zone NEVER changes. Only the middle mutates.        ║
+  ╚══════════════════════════════════════════════════════════════╝
+*/
+
+:root {
+  --bg:         #08080c;
+  --shelf:      #0c0c12;
+  --panel:      #0e0e16;
+  --surface:    #12121c;
+  --elevated:   #18182a;
+  --hover:      #1e1e38;
+  --border:     #1a1a2e;
+  --border-f:   #2a2a4e;
+
+  --text:       #e0e0e8;
+  --muted:      #9999aa;
+  --dim:        #666680;
+  --vdim:       #333348;
+
+  --focus:      #00e5a0;
+  --process:    #4d9fff;
+  --proton:     #ff6b9d;
+  --warn:       #ffd93d;
+  --dead:       #ff4444;
+  --frozen:     #88ccff;
+  --code:       #c77dff;
+
+  --shelf-w:    220px;
+  --bottom-h:   200px;
+  --stamp-h:    30px;
+  --const-h:    28px;
+  --tab-h:      34px;
+
+  --font:       'SF Mono','JetBrains Mono','Fira Code','Cascadia Code',monospace;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--font); height:100vh; overflow:hidden; user-select:none; }
+
+/* ═══ MASTER GRID ═══ */
+.shell {
+  display: grid;
+  grid-template-columns: var(--shelf-w) 1fr var(--shelf-w);
+  grid-template-rows: var(--const-h) var(--tab-h) 1fr var(--stamp-h) var(--bottom-h);
+  grid-template-areas:
+    "const   const    const"
+    "lshelf  tabs     rshelf"
+    "lshelf  panes    rshelf"
+    "lshelf  stamp    rshelf"
+    "lshelf  bottom   rshelf";
+  height: 100vh;
+}
+
+/* ═══ CONSTANTS BAR ═══ */
+.constants-bar {
+  grid-area: const;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 10px; gap: 6px;
+  overflow-x: auto;
+}
+.chip {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 8px; background:var(--surface); border:1px solid var(--border);
+  border-radius:3px; font-size:8px; white-space:nowrap; flex-shrink:0;
+}
+.chip-tag { color:var(--focus); opacity:0.5; }
+.chip-name { color:var(--text); font-weight:500; }
+.chip-sum { color:var(--dim); }
+
+/* ═══ TAB BAR (unified, all three views) ═══ */
+.tab-bar {
+  grid-area: tabs;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 6px; gap: 2px;
+}
+
+.view-tab {
+  padding: 5px 14px;
+  font-size: 9px; letter-spacing: 0.3px;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  transition: all 120ms;
+  border: 1px solid transparent; border-bottom: none;
+}
+.view-tab .tab-dot { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid; }
+.view-tab .tab-label { }
+.view-tab .tab-context { font-size: 7px; color: var(--dim); }
+
+.view-tab.focus-tab { color: var(--dim); }
+.view-tab.focus-tab .tab-dot { border-color: var(--focus); }
+.view-tab.focus-tab.active { color: var(--text); background: var(--surface); border-color: var(--border); }
+.view-tab.focus-tab.active .tab-dot { background: var(--focus); }
+
+.view-tab.process-tab { color: var(--dim); }
+.view-tab.process-tab .tab-dot { border-color: var(--process); }
+.view-tab.process-tab.active { color: var(--text); background: var(--surface); border-color: var(--border); }
+.view-tab.process-tab.active .tab-dot { background: var(--process); }
+
+.view-tab.proton-tab { color: var(--dim); }
+.view-tab.proton-tab .tab-dot { border-color: var(--proton); }
+.view-tab.proton-tab.active { color: var(--text); background: var(--surface); border-color: var(--border); }
+.view-tab.proton-tab.active .tab-dot { background: var(--proton); }
+
+.tab-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+
+/* Layout mode buttons */
+.layout-btns { margin-left: auto; display: flex; gap: 3px; }
+.layout-btn {
+  padding: 4px 10px; font-size: 7px; letter-spacing: 1px;
+  border: 1px solid var(--border); border-radius: 3px;
+  cursor: pointer; color: var(--dim); background: transparent;
+  transition: all 150ms;
+}
+.layout-btn:hover { color: var(--muted); }
+.layout-btn.active { border-color: var(--proton); color: var(--proton); }
+
+/* ═══ PANE CONTAINER ═══ */
+.pane-container {
+  grid-area: panes;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Individual panes */
+.pane {
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  transition: flex 200ms ease;
+  position: relative;
+}
+.pane.hidden { flex: 0 !important; width: 0; overflow: hidden; opacity: 0; pointer-events: none; }
+
+.pane-divider {
+  width: 3px; flex-shrink: 0;
+  background: var(--border); cursor: col-resize;
+  transition: background 200ms;
+}
+.pane-divider:hover { background: var(--focus); }
+.pane-divider.hidden { display: none; }
+
+/* Pane header (shows what's loaded) */
+.pane-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 8px; height: 24px;
+  font-size: 8px; flex-shrink: 0;
+}
+.pane-header.focus-h { background: color-mix(in srgb, var(--focus) 5%, var(--panel)); border-bottom: 1px solid color-mix(in srgb, var(--focus) 15%, var(--border)); }
+.pane-header.process-h { background: color-mix(in srgb, var(--process) 5%, var(--panel)); border-bottom: 1px solid color-mix(in srgb, var(--process) 15%, var(--border)); }
+.pane-header.proton-h { background: color-mix(in srgb, var(--proton) 5%, var(--panel)); border-bottom: 1px solid color-mix(in srgb, var(--proton) 15%, var(--border)); }
+
+.ph-dot { width: 5px; height: 5px; border-radius: 50%; }
+.ph-label { letter-spacing: 1.5px; font-weight: 600; }
+.ph-url { flex: 1; color: var(--dim); text-align: center; }
+.ph-status { font-size: 7px; }
+
+/* Pane body */
+.pane-body { flex: 1; background: var(--bg); overflow: hidden; position: relative; }
+
+/* ═══ CHAT MOCK (Focus + Process panes) ═══ */
+.chat-mock {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+}
+.chat-msgs { width: 85%; max-width: 400px; display: flex; flex-direction: column; gap: 6px; }
+.msg { padding: 8px 12px; border-radius: 6px; font-size: 10px; line-height: 1.5; max-width: 85%; }
+.msg.u { background: var(--elevated); border: 1px solid var(--border); color: var(--muted); align-self: flex-end; }
+.msg.c { background: var(--surface); color: var(--text); align-self: flex-start; }
+.msg-stamp { font-size: 7px; color: var(--focus); opacity: 0.5; margin-bottom: 2px; }
+.chat-input {
+  display: flex; align-items: center; gap: 6px;
+  width: 85%; max-width: 400px;
+  padding: 8px 12px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; margin-top: 6px;
+}
+.chat-input-text { flex: 1; font-size: 10px; color: var(--dim); }
+.chat-input-send { font-size: 12px; cursor: pointer; }
+
+/* ═══ PROTON WORKBENCH MOCK ═══ */
+.proton-mock {
+  position: absolute; inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 3px 1fr;
+  grid-template-rows: 24px 1fr;
+  background: #0d1117;
+}
+
+.proton-sub-header {
+  display: flex; align-items: center; padding: 0 8px;
+  font-size: 7px; letter-spacing: 1px;
+  border-bottom: 1px solid var(--border);
+}
+.proton-sub-header.preview-sh { background: #161b22; color: var(--focus); grid-column: 1; }
+.proton-sub-header.editor-sh { background: #161b22; color: var(--proton); grid-column: 3; }
+.proton-split { grid-row: 1/-1; background: var(--border); cursor: col-resize; }
+
+/* Preview area (the app being built) */
+.proton-preview {
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--focus) 15%, var(--border));
+  border-top: none;
+  position: relative;
+  overflow: hidden;
+}
+.proton-preview-label {
+  position: absolute; top: 6px; left: 8px;
+  font-size: 6px; letter-spacing: 2px;
+  color: var(--focus); opacity: 0.4;
+  z-index: 2;
+}
+.proton-lock-badge {
+  position: absolute; top: 4px; right: 8px;
+  font-size: 7px; padding: 2px 6px;
+  background: color-mix(in srgb, var(--focus) 8%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--focus) 20%, var(--border));
+  border-radius: 3px; color: var(--focus);
+  z-index: 2;
+}
+
+/* Mini shell inside preview */
+.mini-shell {
+  position: absolute; inset: 16px 4px 4px;
+  display: grid;
+  grid-template-columns: 50px 1fr 1fr 50px;
+  grid-template-rows: 14px 1fr 14px;
+  font-size: 5px; border: 1px solid var(--border); border-radius: 3px;
+  overflow: hidden; background: var(--bg);
+}
+.mini-const { grid-column:1/-1; background:var(--panel); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 4px; gap:3px; }
+.mini-chip { padding:1px 4px; background:var(--surface); border:1px solid var(--border); border-radius:2px; font-size:4px; color:var(--dim); }
+.mini-lshelf { background:var(--shelf); border-right:1px solid var(--border); padding:2px; }
+.mini-rshelf { background:var(--shelf); border-left:1px solid var(--border); padding:2px; }
+.mini-pane { background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:4px; color:var(--vdim); }
+.mini-pane-a { border-right:1px solid var(--border); }
+.mini-bottom { grid-column:1/-1; background:var(--panel); border-top:1px solid var(--border); }
+.mini-clan { padding:1px 2px; font-size:3.5px; color:var(--dim); display:flex; align-items:center; gap:2px; margin:1px 0; }
+.mini-dot { width:3px; height:3px; border-radius:50%; }
+
+/* Editor area */
+.proton-editor {
+  background: #0d1117;
+  display: flex; flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--proton) 15%, var(--border));
+  border-top: none;
+  overflow: hidden;
+}
+.proton-editor-tabs {
+  display: flex; background: #161b22; border-bottom: 1px solid var(--border);
+  font-size: 7px;
+}
+.pe-tab { padding: 3px 8px; color: var(--dim); cursor: pointer; border-right: 1px solid var(--border); }
+.pe-tab.on { color: var(--text); background: #0d1117; }
+.proton-code {
+  flex: 1; padding: 6px 8px;
+  font-size: 7px; line-height: 1.5; color: var(--muted);
+  white-space: pre; overflow: auto;
+  font-family: var(--font);
+}
+.proton-code .kw { color: var(--proton); }
+.proton-code .str { color: var(--focus); }
+.proton-code .prop { color: var(--process); }
+.proton-code .com { color: var(--vdim); }
+.proton-code .val { color: var(--warn); }
+
+/* ═══ LEFT SHELF ═══ */
+.shelf-left {
+  grid-area: lshelf;
+  background: var(--shelf); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.shelf-header {
+  padding: 6px 10px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border); min-height: 30px;
+}
+.shelf-title { font-size: 8px; font-weight: 700; letter-spacing: 2.5px; color: var(--vdim); }
+.shelf-action { font-size: 14px; cursor: pointer; color: var(--dim); transition: color 150ms; line-height: 1; }
+.shelf-action:hover { color: var(--focus); }
+.shelf-body { flex: 1; overflow-y: auto; padding: 3px; }
+
+.clan-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; border-radius: 3px;
+  cursor: pointer; font-size: 10px; color: var(--muted);
+  transition: all 120ms; margin: 1px 0;
+}
+.clan-item:hover { background: var(--surface); color: var(--text); }
+.clan-item.active { background: color-mix(in srgb, var(--focus) 8%, var(--bg)); color: var(--focus); }
+.clan-item.frozen { opacity: 0.35; }
+.clan-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.clan-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clan-meta { font-size: 7px; color: var(--dim); }
+
+.shelf-divider {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 8px 3px; font-size: 7px; letter-spacing: 1.5px; color: var(--vdim);
+}
+.shelf-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ═══ RIGHT SHELF ═══ */
+.shelf-right {
+  grid-area: rshelf;
+  background: var(--shelf); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.art-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 8px; cursor: pointer; font-size: 9px; color: var(--muted);
+  border-radius: 3px; margin: 1px 0; transition: all 120ms;
+}
+.art-item:hover { background: var(--surface); color: var(--text); }
+
+/* ═══ STAMP BAR ═══ */
+.stamp-bar {
+  grid-area: stamp;
+  background: var(--panel); border-top: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 10px; gap: 6px;
+}
+.stamp-live {
+  flex: 1; font-size: 8px; color: var(--focus);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.stamp-btn {
+  padding: 2px 8px; font-size: 7px;
+  border: 1px solid var(--border); border-radius: 3px;
+  cursor: pointer; color: var(--dim); background: transparent;
+}
+.stamp-btn:hover { border-color: var(--focus); color: var(--muted); }
+
+/* ═══ BOTTOM ZONE ═══ */
+.bottom-zone {
+  grid-area: bottom;
+  background: var(--panel); border-top: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.zone-header {
+  display: flex; align-items: center; gap: 3px;
+  padding: 4px 6px; border-bottom: 1px solid var(--border); min-height: 26px; flex-shrink: 0;
+}
+.zone-btn {
+  padding: 3px 8px; font-size: 7px; letter-spacing: 1px;
+  border: 1px solid var(--border); border-radius: 3px;
+  cursor: pointer; color: var(--dim); background: transparent; transition: all 150ms;
+}
+.zone-btn:hover { color: var(--muted); }
+.zone-btn.active { border-color: var(--focus); color: var(--focus); }
+
+.target-btns { margin-left: auto; display: flex; gap: 3px; }
+.target-btn {
+  padding: 3px 10px; font-size: 8px; font-weight: 600;
+  border: 1.5px solid; border-radius: 3px;
+  cursor: pointer; background: transparent; transition: all 150ms;
+}
+.target-btn.focus-t { border-color: var(--focus); color: var(--focus); }
+.target-btn.process-t { border-color: var(--process); color: var(--process); opacity: 0.4; }
+.target-btn.proton-t { border-color: var(--proton); color: var(--proton); opacity: 0.4; }
+.target-btn.active { opacity: 1 !important; }
+.target-btn.focus-t.active { background: color-mix(in srgb, var(--focus) 10%, transparent); }
+.target-btn.proton-t.active { background: color-mix(in srgb, var(--proton) 10%, transparent); }
+
+/* KB area (same as before but with proton target color) */
+.kb-area { flex: 1; padding: 6px; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
+.key-row { display: flex; gap: 3px; justify-content: center; }
+.key {
+  height: 30px; min-width: 30px; padding: 0 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); transition: all 80ms; position: relative;
+}
+.key:hover { background: var(--elevated); transform: translateY(-1px); }
+.key::after {
+  content: ''; position: absolute; bottom: 2px; left: 4px; right: 4px;
+  height: 2px; border-radius: 1px; background: var(--focus); opacity: 0.3;
+}
+.key.g { font-size: 9px; min-width: 42px; font-weight: 600; letter-spacing: 0.5px; }
+.key.g.yes { color: var(--focus); border-color: color-mix(in srgb, var(--focus) 30%, var(--border)); }
+.key.g.half { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, var(--border)); }
+.key.g.open { color: var(--dim); }
+.key.act { font-size: 8px; min-width: 52px; color: var(--muted); letter-spacing: 0.5px; }
+.key.sp { flex: 1; max-width: 280px; }
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ═══ CONSTANTS BAR ═══ -->
+  <div class="constants-bar">
+    <span class="chip"><span class="chip-tag">const/</span><span class="chip-name">Blue Channel</span> <span class="chip-sum">"carrier verified"</span></span>
+    <span class="chip"><span class="chip-tag">const/</span><span class="chip-name">JPEG Internals</span> <span class="chip-sum">"75% chroma lost"</span></span>
+  </div>
+
+  <!-- ═══ TAB BAR ═══ -->
+  <div class="tab-bar">
+    <div class="view-tab focus-tab active" onclick="activateTab('focus')">
+      <span class="tab-dot"></span>
+      <span class="tab-label">Focus</span>
+      <span class="tab-context">Encoding Strategy</span>
+    </div>
+    <div class="view-tab process-tab active" onclick="activateTab('process')">
+      <span class="tab-dot"></span>
+      <span class="tab-label">Process</span>
+      <span class="tab-context">Channel Capacity</span>
+    </div>
+    <div class="tab-sep"></div>
+    <div class="view-tab proton-tab active" onclick="activateTab('proton')">
+      <span class="tab-dot"></span>
+      <span class="tab-label">Proton</span>
+      <span class="tab-context">shell.html • 🔒</span>
+    </div>
+
+    <div class="layout-btns">
+      <button class="layout-btn" data-layout="chat" onclick="setLayout('chat')">◧ CHAT</button>
+      <button class="layout-btn active" data-layout="build" onclick="setLayout('build')">◨ BUILD</button>
+      <button class="layout-btn" data-layout="forge" onclick="setLayout('forge')">□ FORGE</button>
+      <button class="layout-btn" data-layout="trio" onclick="setLayout('trio')">⊞ TRIO</button>
+    </div>
+  </div>
+
+  <!-- ═══ LEFT SHELF ═══ -->
+  <div class="shelf-left">
+    <div class="shelf-header">
+      <span class="shelf-title">CLANS</span>
+      <span class="shelf-action">+</span>
+    </div>
+    <div class="shelf-body">
+      <div class="shelf-divider">ACTIVE</div>
+      <div class="clan-item active">
+        <div class="clan-dot" style="background:var(--focus)"></div>
+        <span class="clan-name">Encoding Strategy</span>
+        <span class="clan-meta">d=4</span>
+      </div>
+      <div class="clan-item">
+        <div class="clan-dot" style="background:var(--code)"></div>
+        <span class="clan-name">Channel Capacity</span>
+        <span class="clan-meta">d=3</span>
+      </div>
+      <div class="clan-item">
+        <div class="clan-dot" style="background:var(--warn)"></div>
+        <span class="clan-name">Error Correction</span>
+        <span class="clan-meta">d=1</span>
+      </div>
+      <div class="shelf-divider">FROZEN</div>
+      <div class="clan-item frozen">
+        <div class="clan-dot" style="background:var(--frozen)"></div>
+        <span class="clan-name">Blue Channel</span>
+        <span class="clan-meta">❄ d=8</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PANE CONTAINER ═══ -->
+  <div class="pane-container" id="pane-container">
+
+    <!-- FOCUS PANE -->
+    <div class="pane" id="pane-focus" style="flex:1">
+      <div class="pane-header focus-h">
+        <div class="ph-dot" style="background:var(--focus)"></div>
+        <span class="ph-label" style="color:var(--focus)">FOCUS</span>
+        <span class="ph-url">claude.ai/chat/encoding-strategy</span>
+        <span class="ph-status" style="color:var(--focus)">● Live</span>
+      </div>
+      <div class="pane-body">
+        <div class="chat-mock">
+          <div class="chat-msgs">
+            <div class="msg u">
+              <div class="msg-stamp">[OLO|🌿encoding|📍4|#a3f2]</div>
+              How does frequency domain encoding survive JPEG recompression?
+            </div>
+            <div class="msg c">
+              Mid-frequency DCT coefficients (4-12 per 8×8 block) are least affected by quantization. Embedding there avoids both DC and HF bands.
+            </div>
+            <div class="msg u">
+              <div class="msg-stamp">[OLO|🌿encoding|📍4|⚡OPEN|#a3f2]</div>
+              Can you write the encoder? Put it in Proton so I can see it run.
+            </div>
+            <div class="msg c">
+              I'll create freq_encoder.rs in your clan's worktree and load the test harness in Proton. You'll see the encoding visualized live.
+            </div>
+          </div>
+          <div class="chat-input">
+            <span class="chat-input-text">Talk to Claude...</span>
+            <span class="chat-input-send" style="color:var(--focus)">↑</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane-divider" id="div-fp"></div>
+
+    <!-- PROCESS PANE -->
+    <div class="pane hidden" id="pane-process" style="flex:1">
+      <div class="pane-header process-h">
+        <div class="ph-dot" style="background:var(--process)"></div>
+        <span class="ph-label" style="color:var(--process)">PROCESS</span>
+        <span class="ph-url">claude.ai/chat/channel-capacity</span>
+        <span class="ph-status" style="color:var(--process)">● Live</span>
+      </div>
+      <div class="pane-body">
+        <div class="chat-mock">
+          <div class="chat-msgs">
+            <div class="msg u">
+              <div class="msg-stamp" style="color:var(--process)">[OLO|🌿capacity|📍3|#7b1e]</div>
+              Realistic bit capacity per 1024×1024?
+            </div>
+            <div class="msg c">
+              16,384 luminance blocks × 9 usable coefficients = ~147K bits theoretical. After 40% ECC: ~240 reliable bits per image.
+            </div>
+          </div>
+          <div class="chat-input">
+            <span class="chat-input-text">Talk to Claude...</span>
+            <span class="chat-input-send" style="color:var(--process)">↑</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane-divider hidden" id="div-pp"></div>
+
+    <!-- PROTON PANE -->
+    <div class="pane" id="pane-proton" style="flex:1.2">
+      <div class="pane-header proton-h">
+        <div class="ph-dot" style="background:var(--proton)"></div>
+        <span class="ph-label" style="color:var(--proton)">PROTON</span>
+        <span class="ph-url">gently://workbench • shell.html</span>
+        <span class="ph-status" style="color:var(--focus)">🔒 Hardlocked</span>
+      </div>
+      <div class="pane-body">
+        <div class="proton-mock">
+          <div class="proton-sub-header preview-sh">▶ LIVE PREVIEW</div>
+          <div class="proton-split"></div>
+          <div class="proton-sub-header editor-sh">✎ EDITOR</div>
+
+          <div class="proton-preview">
+            <div class="proton-preview-label">EMBEDDED APP</div>
+            <div class="proton-lock-badge">🔒 5-layer hardlock</div>
+            <div class="mini-shell">
+              <div class="mini-const">
+                <span class="mini-chip">Blue Channel</span>
+                <span class="mini-chip">JPEG</span>
+              </div>
+              <div class="mini-lshelf">
+                <div class="mini-clan"><div class="mini-dot" style="background:var(--focus)"></div> Encoding</div>
+                <div class="mini-clan"><div class="mini-dot" style="background:var(--code)"></div> Capacity</div>
+                <div class="mini-clan"><div class="mini-dot" style="background:var(--warn)"></div> Error</div>
+              </div>
+              <div class="mini-pane mini-pane-a">claude.ai</div>
+              <div class="mini-pane">claude.ai</div>
+              <div class="mini-rshelf">
+                <div class="mini-clan" style="font-size:3px;color:var(--vdim)">artifacts</div>
+              </div>
+              <div class="mini-bottom"></div>
+            </div>
+          </div>
+
+          <div class="proton-editor">
+            <div class="proton-editor-tabs">
+              <div class="pe-tab on">shell.html</div>
+              <div class="pe-tab">tokens.css</div>
+              <div class="pe-tab">main.js</div>
+            </div>
+            <div class="proton-code"><span class="com">/* Edit the shell — see it live ←  */</span>
+<span class="kw">:root</span> {
+  <span class="prop">--bg</span>: <span class="str">#08080c</span>;
+  <span class="prop">--accent</span>: <span class="str">#00e5a0</span>;  <span class="com">/* ← change this */</span>
+  <span class="prop">--process</span>: <span class="str">#4d9fff</span>;
+  <span class="prop">--proton</span>: <span class="str">#ff6b9d</span>;
+  <span class="prop">--shelf-w</span>: <span class="val">220px</span>;
+}
+
+<span class="kw">.shell</span> {
+  <span class="prop">display</span>: grid;
+  <span class="prop">grid-template-columns</span>:
+    <span class="val">var(--shelf-w)</span> <span class="val">1fr</span> <span class="val">1fr</span> <span class="val">var(--shelf-w)</span>;
+  <span class="prop">height</span>: <span class="val">100vh</span>;
+}
+
+<span class="com">/* Proton view inherits all tokens */</span>
+<span class="com">/* The mini-shell above IS this code */</span>
+<span class="com">/* Edit here → mini-shell updates ↑  */</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ RIGHT SHELF ═══ -->
+  <div class="shelf-right">
+    <div class="shelf-header">
+      <span class="shelf-title">ARTIFACTS</span>
+      <span class="shelf-action">⊕</span>
+    </div>
+    <div class="shelf-body">
+      <div class="shelf-divider">AUTO</div>
+      <div class="art-item" style="border-left:2px solid var(--focus)">
+        <span>⚙</span> <span style="flex:1">Blue: "verified"</span> <span style="font-size:7px;color:var(--dim)">d=8</span>
+      </div>
+      <div class="shelf-divider">STAGED → PROTON</div>
+      <div class="art-item" style="border-left:2px solid var(--proton)">
+        <span>📎</span> <span style="flex:1">freq_encoder.rs</span> <span style="font-size:7px;color:var(--proton)">→P</span>
+      </div>
+      <div class="art-item" style="border-left:2px solid var(--proton)">
+        <span>📎</span> <span style="flex:1">test_harness.html</span> <span style="font-size:7px;color:var(--proton)">→P</span>
+      </div>
+      <div class="shelf-divider">COLLECTED</div>
+      <div class="art-item">
+        <span>📄</span> <span style="flex:1">DCT analysis</span> <span style="font-size:7px;color:var(--dim)">14 ln</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STAMP BAR ═══ -->
+  <div class="stamp-bar">
+    <span class="stamp-live">[OLO|🌿clan/encoding-strategy|📍4|⚡OPEN|🔒A●B●C●D●E◐F●G○|📌freq-domain|#a3f2|⏱0201T2200]</span>
+    <button class="stamp-btn">📋</button>
+    <button class="stamp-btn">⚡OPEN</button>
+  </div>
+
+  <!-- ═══ BOTTOM ZONE ═══ -->
+  <div class="bottom-zone">
+    <div class="zone-header">
+      <button class="zone-btn active">⌨ KB</button>
+      <button class="zone-btn">📦 ART</button>
+      <button class="zone-btn">⚙ TERM</button>
+      <div class="target-btns">
+        <button class="target-btn focus-t active" onclick="setTarget('focus')">A FOCUS</button>
+        <button class="target-btn process-t" onclick="setTarget('process')">B PROC</button>
+        <button class="target-btn proton-t" onclick="setTarget('proton')">P PROTON</button>
+      </div>
+    </div>
+    <div class="kb-area" id="kb-area">
+      <div class="key-row">
+        <div class="key g yes">A●</div><div class="key g yes">B●</div><div class="key g yes">C●</div>
+        <div class="key g yes">D●</div><div class="key g half">E◐</div><div class="key g yes">F●</div><div class="key g open">G○</div>
+        <div style="width:12px"></div>
+        <div class="key act" style="border-color:var(--focus);color:var(--focus)">⚡OPEN</div>
+        <div class="key act">⚡GATE</div>
+        <div class="key act">⚡DONE</div>
+      </div>
+      <div class="key-row">
+        <div class="key">q</div><div class="key">w</div><div class="key">e</div><div class="key">r</div><div class="key">t</div><div class="key">y</div><div class="key">u</div><div class="key">i</div><div class="key">o</div><div class="key">p</div>
+      </div>
+      <div class="key-row">
+        <div class="key">a</div><div class="key">s</div><div class="key">d</div><div class="key">f</div><div class="key">g</div><div class="key">h</div><div class="key">j</div><div class="key">k</div><div class="key">l</div>
+      </div>
+      <div class="key-row">
+        <div class="key">z</div><div class="key">x</div><div class="key">c</div><div class="key">v</div><div class="key">b</div><div class="key">n</div><div class="key">m</div>
+      </div>
+      <div class="key-row">
+        <div class="key act">◆ SAVE</div>
+        <div class="key act">🌿 FORK</div>
+        <div class="key act" style="border-color:var(--warn);color:var(--warn)">⭐ COLLAPSE</div>
+        <div class="key act" style="border-color:var(--focus);color:var(--focus)">A</div>
+        <div class="key sp"></div>
+        <div class="key act" style="border-color:var(--process);color:var(--process);opacity:0.4">B</div>
+        <div class="key act" style="border-color:var(--proton);color:var(--proton);opacity:0.4">P</div>
+        <div class="key act" style="border-color:var(--code);color:var(--code)">⚙ CODE</div>
+        <div class="key act">📌 PIN</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  LAYOUT MODES
+  The pane container shows different combinations:
+  CHAT:  Focus + Process   (standard two-pane)
+  BUILD: Focus + Proton    (talk + build)
+  FORGE: Proton only       (full workbench)
+  TRIO:  Focus + Process + Proton (everything)
+*/
+
+function setLayout(mode) {
+  const focus = document.getElementById('pane-focus');
+  const process = document.getElementById('pane-process');
+  const proton = document.getElementById('pane-proton');
+  const divFP = document.getElementById('div-fp');
+  const divPP = document.getElementById('div-pp');
+
+  // Reset
+  [focus, process, proton].forEach(p => { p.classList.remove('hidden'); p.style.flex = '1'; });
+  [divFP, divPP].forEach(d => d.classList.remove('hidden'));
+
+  document.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[data-layout="${mode}"]`).classList.add('active');
+
+  // Update tab active states
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+
+  switch (mode) {
+    case 'chat':
+      proton.classList.add('hidden');
+      divPP.classList.add('hidden');
+      document.querySelector('.focus-tab').classList.add('active');
+      document.querySelector('.process-tab').classList.add('active');
+      break;
+    case 'build':
+      process.classList.add('hidden');
+      divPP.classList.add('hidden');
+      proton.style.flex = '1.2';
+      document.querySelector('.focus-tab').classList.add('active');
+      document.querySelector('.proton-tab').classList.add('active');
+      break;
+    case 'forge':
+      focus.classList.add('hidden');
+      process.classList.add('hidden');
+      divFP.classList.add('hidden');
+      divPP.classList.add('hidden');
+      document.querySelector('.proton-tab').classList.add('active');
+      break;
+    case 'trio':
+      focus.style.flex = '1';
+      process.style.flex = '0.8';
+      proton.style.flex = '1.2';
+      document.querySelectorAll('.view-tab').forEach(t => t.classList.add('active'));
+      break;
+  }
+}
+
+function activateTab(which) {
+  // Clicking a tab in CHAT mode could switch to BUILD, etc.
+  // For now just visual feedback
+}
+
+function setTarget(t) {
+  document.querySelectorAll('.target-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.${t}-t`).classList.add('active');
+
+  // Update key underlines
+  const color = t === 'focus' ? 'var(--focus)' : t === 'process' ? 'var(--process)' : 'var(--proton)';
+  document.querySelectorAll('.key::after').forEach(k => k.style.background = color);
+  // CSS can't be changed via JS for pseudo-elements easily, so we use a class
+  const area = document.getElementById('kb-area');
+  area.style.setProperty('--key-accent', color);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === 'l') { e.preventDefault();
+    const modes = ['chat', 'build', 'forge', 'trio'];
+    const current = document.querySelector('.layout-btn.active').dataset.layout;
+    const next = modes[(modes.indexOf(current) + 1) % modes.length];
+    setLayout(next);
+  }
+  if (e.key === 'Tab' && !e.ctrlKey) { e.preventDefault();
+    const btns = document.querySelectorAll('.target-btn');
+    const active = document.querySelector('.target-btn.active');
+    const targets = ['focus', 'process', 'proton'];
+    const current = targets.find(t => active.classList.contains(`${t}-t`));
+    const next = targets[(targets.indexOf(current) + 1) % targets.length];
+    setTarget(next);
+  }
+});
+
+// Init
+setLayout('build');
+</script>
+</body>
+</html>

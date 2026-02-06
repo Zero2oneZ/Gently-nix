@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GentlyOS Shell v6 — Context Loop</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg: #08090d;
+  --surface: #0e1015;
+  --panel: #12141c;
+  --shelf-bg: #0c0e14;
+  --kbd-bg: #090b10;
+  --rail-bg: #0a0c12;
+  --border: #1c1f2e;
+  --border-hi: #2a2f45;
+  --text: #b8bdd0;
+  --text-hi: #dde0ec;
+  --dim: #4a5070;
+  --accent: #5e7ce2;
+  --accent-dim: rgba(94,124,226,0.12);
+  --teal: #3ec9b0;
+  --teal-dim: rgba(62,201,176,0.12);
+  --amber: #d4a24e;
+  --amber-dim: rgba(212,162,78,0.1);
+  --red: #d45a6e;
+  --violet: #9b7aed;
+  --violet-dim: rgba(155,122,237,0.12);
+  --ctx-h: 42px;
+  --shelf-h: 280px;
+  --kbd-h: 250px;
+  --rail-w: 38px;
+  --rail-exp: 100px;
+  --topbar-h: 34px;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;user-select:none}
+
+.i{width:16px;height:16px;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;flex-shrink:0}
+.i-s{width:13px;height:13px;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;flex-shrink:0}
+.i-xs{width:11px;height:11px;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;flex-shrink:0}
+.i-l{width:20px;height:20px;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none}
+
+/* ═══ SHELL ═══════════════════════════════════════ */
+#shell{display:grid;grid-template-rows:var(--topbar-h) 1fr var(--ctx-h);height:100vh;transition:grid-template-rows .28s cubic-bezier(.4,0,.2,1)}
+#shell.kbd-on{grid-template-rows:var(--topbar-h) 1fr 0px}
+
+/* ═══ TOPBAR ═══════════════════════════════════════ */
+#topbar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:8px;z-index:50}
+.logo{font-family:var(--mono);font-weight:700;font-size:10px;letter-spacing:2.5px;color:var(--text-hi)}
+.sep{width:1px;height:14px;background:var(--border)}
+.pill{font-family:var(--mono);font-size:8px;letter-spacing:1px;padding:2px 7px;border-radius:3px;border:1px solid var(--border);color:var(--dim);background:transparent;cursor:pointer}
+.pill:hover{border-color:var(--border-hi);color:var(--text)}
+.pill.on{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
+.spacer{flex:1}
+.gd{font-family:var(--mono);font-size:8px;color:var(--teal);display:flex;align-items:center;gap:5px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--teal);animation:blink 2.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ═══ MAIN ════════════════════════════════════════ */
+#main{display:grid;grid-template-columns:300px 1fr;overflow:hidden;position:relative}
+
+/* ─── CHAT ─────────────────────────────────────── */
+#chat{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#chat-head{padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px}
+.av{width:20px;height:20px;border-radius:5px;background:var(--accent-dim);border:1px solid rgba(94,124,226,.2);display:flex;align-items:center;justify-content:center;color:var(--accent)}
+.cn{font-weight:600;font-size:12px}.cs{font-family:var(--mono);font-size:8px;color:var(--teal)}
+#msgs{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px}
+
+/* Message bubble */
+.m{padding:7px 10px;border-radius:8px;font-size:11px;line-height:1.5;max-width:90%;position:relative;cursor:default}
+.m.u{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:2px}
+.m.c{align-self:flex-start;background:var(--panel);border:1px solid var(--border);border-bottom-left-radius:2px}
+.m code{font-family:var(--mono);font-size:9px;background:rgba(0,0,0,.25);padding:1px 4px;border-radius:2px}
+
+/* Artifact tag on message */
+.mtag{
+  display:inline-flex;align-items:center;gap:3px;
+  font-family:var(--mono);font-size:7px;letter-spacing:.4px;
+  padding:2px 5px;border-radius:3px;margin-top:4px;cursor:pointer;
+  transition:all .12s;
+}
+.mtag:hover{filter:brightness(1.3)}
+.mtag .mtag-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+
+/* Tag button on hover */
+.m .tag-btn{
+  position:absolute;top:3px;right:3px;
+  width:16px;height:16px;border-radius:3px;border:1px solid transparent;
+  background:transparent;color:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .1s;
+}
+.m:hover .tag-btn{border-color:var(--border);color:var(--dim)}
+.m:hover .tag-btn:hover{border-color:var(--violet);color:var(--violet);background:var(--violet-dim)}
+
+/* Tag picker dropdown */
+.tag-picker{
+  position:absolute;top:100%;right:0;z-index:60;
+  background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  padding:4px;min-width:150px;display:none;box-shadow:0 4px 16px rgba(0,0,0,.4);
+}
+.tag-picker.show{display:block}
+.tp-item{
+  display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:4px;
+  cursor:pointer;font-size:10px;font-family:var(--mono);transition:background .08s;
+}
+.tp-item:hover{background:var(--surface)}
+.tp-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* ─── SURFACE ──────────────────────────────────── */
+#surface{background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+#surface-head{padding:6px 12px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px;color:var(--dim);display:flex;align-items:center;gap:8px}
+#surface-artifact{color:var(--text-hi);font-weight:600}
+#canvas{flex:1;overflow:auto;padding:16px}
+#artifact-view{min-height:100%;border:1.5px solid var(--border);border-radius:10px;padding:16px;transition:all .25s}
+#artifact-view.hydrated{border-color:var(--teal);box-shadow:0 0 20px var(--teal-dim)}
+.av-empty{text-align:center;padding:60px 20px;color:var(--dim);font-size:11px;line-height:2.2}
+.av-header{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.av-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.av-name{font-weight:600;font-size:14px;color:var(--text-hi);flex:1}
+.av-status{font-family:var(--mono);font-size:8px;letter-spacing:1px;padding:2px 6px;border-radius:3px}
+.av-body{font-family:var(--mono);font-size:10px;color:var(--dim);line-height:1.8;white-space:pre-line}
+.av-msgs{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+.av-msgs-title{font-family:var(--mono);font-size:8px;letter-spacing:1.5px;color:var(--dim);margin-bottom:8px}
+.av-msg{padding:5px 8px;border-radius:5px;font-size:10px;margin-bottom:4px;border-left:2px solid}
+
+/* ═══ SHELF ═══════════════════════════════════════ */
+#shelf-wrap{position:absolute;bottom:0;left:0;right:0;height:0;overflow:hidden;z-index:80;transition:height .28s cubic-bezier(.4,0,.2,1)}
+#shelf-wrap.open{height:var(--shelf-h)}
+#shelf{height:var(--shelf-h);background:var(--shelf-bg);border-top:1px solid var(--border);display:flex;flex-direction:column}
+#sh-head{padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+#sh-title{font-family:var(--mono);font-size:9px;letter-spacing:1.5px;color:var(--text);text-transform:uppercase}
+#sh-x{width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center}
+#sh-x:hover{color:var(--text)}
+#sh-body{flex:1;overflow-y:auto;padding:10px 14px}
+.sec{font-family:var(--mono);font-size:7px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;padding:5px 0 3px}
+.lego{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:grab;transition:all .15s;display:flex;align-items:center;gap:8px}
+.lego:hover{border-color:var(--border-hi);transform:translateX(2px)}
+.li{width:28px;height:28px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ln{font-weight:600;font-size:11px;color:var(--text-hi)}
+.ld{font-size:9px;color:var(--dim);margin-top:1px}
+.lt{font-family:var(--mono);font-size:7px;padding:2px 4px;border-radius:2px;background:var(--surface);color:var(--dim);white-space:nowrap}
+.lt.w{border:1px solid var(--amber);color:var(--amber);background:var(--amber-dim)}
+
+/* ═══ KEYBOARD ═══════════════════════════════════ */
+#kbd-wrap{position:absolute;bottom:0;left:0;right:0;height:0;overflow:hidden;z-index:90;transition:height .28s cubic-bezier(.4,0,.2,1)}
+#kbd-wrap.open{height:var(--kbd-h)}
+#kbd{height:var(--kbd-h);background:var(--kbd-bg);border-top:1px solid var(--border);display:flex;flex-direction:column}
+
+#kbd-top{display:flex;align-items:center;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 2px}
+.ftab-group{display:flex;gap:1px;align-items:center;flex-shrink:0;padding:0 2px}
+.ftab{padding:5px 9px;font-family:var(--mono);font-size:7px;letter-spacing:1px;color:var(--dim);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .12s;white-space:nowrap}
+.ftab:hover{color:var(--text);background:var(--panel)}
+.ftab.on{color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-dim)}
+.ftab[data-f="surface"].on{color:var(--teal);border-bottom-color:var(--teal);background:var(--teal-dim)}
+.ftab[data-f="terminal"].on{color:var(--amber);border-bottom-color:var(--amber);background:var(--amber-dim)}
+.ftab[data-f="search"].on{color:var(--text-hi);border-bottom-color:var(--text-hi)}
+
+#input-pill{display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:2px 3px 2px 12px;flex:1;min-width:0;max-width:600px;margin:4px 0;transition:border-color .15s}
+#input-pill:focus-within{border-color:var(--accent)}
+#kbd-input{background:none;border:none;color:var(--text);font-family:var(--sans);font-size:12px;outline:none;padding:5px 0;flex:1;min-width:40px}
+#kbd-input::placeholder{color:var(--dim)}
+#kbd-enter{padding:4px 9px;border-radius:14px;border:none;background:var(--accent);color:#fff;font-family:var(--mono);font-size:7px;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;gap:3px;transition:all .12s;white-space:nowrap;flex-shrink:0}
+#kbd-enter:hover{filter:brightness(1.2)}
+#kbd-close{width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:4px;transition:all .12s}
+#kbd-close:hover{border-color:var(--text);color:var(--text)}
+
+#kbd-body{flex:1;display:grid;grid-template-columns:var(--rail-w) 1fr var(--rail-w);transition:grid-template-columns .22s cubic-bezier(.4,0,.2,1);overflow:hidden}
+#kbd-body.l-exp{grid-template-columns:var(--rail-exp) 1fr var(--rail-w)}
+#kbd-body.r-exp{grid-template-columns:var(--rail-w) 1fr var(--rail-exp)}
+
+.rail{background:var(--rail-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:2px;overflow-y:auto;overflow-x:hidden}
+.rail.right{border-right:none;border-left:1px solid var(--border)}
+.rail-toggle{width:28px;height:20px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;margin-bottom:2px;flex-shrink:0;transition:all .12s}
+.rail-toggle:hover{border-color:var(--border-hi);color:var(--text)}
+.rail-toggle.on{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
+.macro{width:30px;height:28px;border:1px solid var(--border);border-radius:4px;background:var(--panel);color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .1s;flex-shrink:0}
+.macro:hover{border-color:var(--border-hi);color:var(--text)}
+.macro:active{background:var(--accent);color:#fff;transform:scale(.92)}
+.macro .ml{display:none;font-family:var(--mono);font-size:6px;color:var(--dim);white-space:nowrap;margin-left:3px}
+.rail.expanded{align-items:stretch;padding:4px 4px}
+.rail.expanded .macro{width:auto;padding:0 6px;justify-content:flex-start;gap:3px}
+.rail.expanded .macro .ml{display:block}
+.macro-add{width:30px;height:28px;border:1px dashed var(--border);border-radius:4px;background:transparent;color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:auto}
+.macro-add:hover{border-color:var(--teal);color:var(--teal)}
+
+#keys{display:flex;flex-direction:column;justify-content:center;gap:3px;padding:4px 8px}
+.kr{display:flex;justify-content:center;gap:2px}
+.k{min-width:28px;height:28px;border-radius:4px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-family:var(--mono);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .06s;flex:1;max-width:38px}
+.k:hover{background:var(--border-hi)}
+.k:active{background:var(--accent);color:#fff;transform:scale(.94)}
+.k.wide{min-width:42px;max-width:60px;font-size:8px}
+.k.space{flex:4;max-width:none;color:var(--dim);font-size:7px;letter-spacing:2px}
+.k.enter{flex:1.5;max-width:68px;border-color:var(--accent);color:var(--accent);font-size:8px;letter-spacing:1px}
+.k.enter:active{background:var(--accent);color:#fff}
+.k.shift{flex:1.2;max-width:52px;font-size:8px}
+.k.back{flex:1.2;max-width:52px}
+
+/* ═══ CONTEXT BAR (replaces old toolbar) ═════════ */
+#ctx-bar{
+  background:var(--surface);
+  border-top:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  z-index:100;
+  overflow:hidden;
+  transition:opacity .2s;
+  padding:0 4px;
+  gap:3px;
+}
+#shell.kbd-on #ctx-bar{opacity:0;pointer-events:none}
+
+/* Artifact pills */
+.ctx-pill{
+  display:flex;align-items:center;gap:5px;
+  padding:4px 10px 4px 6px;
+  border-radius:6px;
+  border:1px solid var(--border);
+  background:var(--panel);
+  cursor:pointer;
+  transition:all .15s;
+  flex-shrink:0;
+  height:32px;
+  position:relative;
+}
+.ctx-pill:hover{border-color:var(--border-hi);background:var(--border)}
+.ctx-pill.active{border-color:var(--teal);background:var(--teal-dim)}
+.ctx-pill.active .ctx-name{color:var(--teal)}
+
+.ctx-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ctx-name{font-family:var(--mono);font-size:8px;letter-spacing:.3px;color:var(--text);white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis}
+.ctx-count{
+  font-family:var(--mono);font-size:7px;
+  background:var(--surface);color:var(--dim);
+  padding:1px 4px;border-radius:8px;
+  min-width:16px;text-align:center;
+  flex-shrink:0;
+}
+.ctx-pill.active .ctx-count{background:rgba(62,201,176,.15);color:var(--teal)}
+
+/* Scroll area for pills */
+#ctx-scroll{
+  display:flex;align-items:center;gap:3px;
+  flex:1;overflow-x:auto;overflow-y:hidden;
+  padding:0 2px;
+  scrollbar-width:none;
+}
+#ctx-scroll::-webkit-scrollbar{display:none}
+
+/* Add artifact button */
+#ctx-add{
+  width:28px;height:28px;border-radius:5px;
+  border:1px dashed var(--border);background:transparent;
+  color:var(--dim);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .12s;
+}
+#ctx-add:hover{border-color:var(--teal);color:var(--teal)}
+
+/* Spacebar trigger (small, right side) */
+#kbd-trigger{
+  width:28px;height:28px;border-radius:5px;
+  border:1px solid var(--border);background:var(--panel);
+  color:var(--dim);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .12s;margin-left:auto;
+}
+#kbd-trigger:hover{border-color:var(--accent);color:var(--accent)}
+#kbd-trigger.open{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+
+/* Right shelf trigger */
+.ctx-shelf-btn{
+  width:28px;height:28px;border-radius:5px;
+  border:1px solid var(--border);background:var(--panel);
+  color:var(--dim);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .12s;
+}
+.ctx-shelf-btn:hover{border-color:var(--border-hi);color:var(--text)}
+.ctx-shelf-btn.active{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
+
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<div id="shell">
+
+<div id="topbar">
+  <span class="logo">GENTLYOS</span><span class="sep"></span>
+  <button class="pill on">LEGO</button><button class="pill">FORK</button><button class="pill">LIVE</button>
+  <span class="spacer"></span>
+  <span class="gd"><span class="dot"></span>GUARDDOG</span>
+</div>
+
+<div id="main">
+
+  <div id="chat">
+    <div id="chat-head">
+      <div class="av"><svg class="i-s" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+      <div><div class="cn">Claude</div><div class="cs">active</div></div>
+    </div>
+    <div id="msgs"></div>
+  </div>
+
+  <div id="surface">
+    <div id="surface-head">
+      <svg class="i-s" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      <span id="surface-artifact">No artifact selected</span>
+      <span style="flex:1"></span>
+      <span id="pc" style="font-family:var(--mono);font-size:8px;color:var(--dim)"></span>
+    </div>
+    <div id="canvas">
+      <div id="artifact-view">
+        <div class="av-empty" id="av-hint">
+          <svg class="i-l" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;color:var(--border-hi)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Artifacts appear here as they're built<br/>
+          Click a pill below to hydrate
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="shelf-wrap">
+    <div id="shelf"><div id="sh-head"><span id="sh-title">APPS</span><button id="sh-x"><svg class="i-s" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div id="sh-body"></div></div>
+  </div>
+
+  <!-- Keyboard -->
+  <div id="kbd-wrap">
+    <div id="kbd">
+      <div id="kbd-top">
+        <div class="ftab-group"><button class="ftab on" data-f="chat">CHAT</button><button class="ftab" data-f="terminal">TERM</button></div>
+        <div id="input-pill">
+          <input id="kbd-input" type="text" placeholder="Message Claude..." autocomplete="off" spellcheck="false"/>
+          <button id="kbd-enter"><svg class="i-xs" viewBox="0 0 24 24"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 01-4 4H4"/></svg><span id="enter-label">SEND</span></button>
+        </div>
+        <div class="ftab-group"><button class="ftab" data-f="surface">SURFACE</button><button class="ftab" data-f="search">FIND</button></div>
+        <button id="kbd-close"><svg class="i-s" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
+      </div>
+      <div id="kbd-body">
+        <div class="rail" id="rail-L">
+          <button class="rail-toggle" id="tog-L"><svg class="i-xs" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+          <button class="macro" data-cmd="undo"><svg class="i-xs" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg><span class="ml">UNDO</span></button>
+          <button class="macro" data-cmd="save"><svg class="i-xs" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="ml">SAVE</span></button>
+          <button class="macro" data-cmd="copy"><svg class="i-xs" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg><span class="ml">COPY</span></button>
+          <button class="macro-add" data-side="L"><svg class="i-xs" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        </div>
+        <div id="keys">
+          <div class="kr"><button class="k">q</button><button class="k">w</button><button class="k">e</button><button class="k">r</button><button class="k">t</button><button class="k">y</button><button class="k">u</button><button class="k">i</button><button class="k">o</button><button class="k">p</button></div>
+          <div class="kr"><button class="k">a</button><button class="k">s</button><button class="k">d</button><button class="k">f</button><button class="k">g</button><button class="k">h</button><button class="k">j</button><button class="k">k</button><button class="k">l</button></div>
+          <div class="kr"><button class="k shift wide">SHIFT</button><button class="k">z</button><button class="k">x</button><button class="k">c</button><button class="k">v</button><button class="k">b</button><button class="k">n</button><button class="k">m</button><button class="k back wide"><svg class="i-s" viewBox="0 0 24 24"><path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg></button></div>
+          <div class="kr"><button class="k wide">123</button><button class="k wide">@</button><button class="k space">SPACE</button><button class="k wide">.</button><button class="k enter">ENTER</button></div>
+        </div>
+        <div class="rail right" id="rail-R">
+          <button class="rail-toggle" id="tog-R"><svg class="i-xs" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <button class="macro" data-cmd="run"><svg class="i-xs" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg><span class="ml">RUN</span></button>
+          <button class="macro" data-cmd="deploy"><svg class="i-xs" viewBox="0 0 24 24"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg><span class="ml">DEPLOY</span></button>
+          <button class="macro" data-cmd="vault"><svg class="i-xs" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><span class="ml">VAULT</span></button>
+          <button class="macro-add" data-side="R"><svg class="i-xs" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ CONTEXT BAR ═══════════════════════════════ -->
+<div id="ctx-bar">
+  <div id="ctx-scroll"></div>
+  <button id="ctx-add" title="New artifact"><svg class="i-xs" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+  <button class="ctx-shelf-btn" data-shelf="apps" title="Apps"><svg class="i-xs" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+  <button class="ctx-shelf-btn" data-shelf="tools" title="Tools"><svg class="i-xs" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg></button>
+  <button id="kbd-trigger" title="Keyboard"><svg class="i-xs" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6.01" y2="8"/><line x1="10" y1="8" x2="10.01" y2="8"/><line x1="14" y1="8" x2="14.01" y2="8"/><line x1="18" y1="8" x2="18.01" y2="8"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="10" y1="12" x2="10.01" y2="12"/><line x1="14" y1="12" x2="14.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/><line x1="8" y1="16" x2="16" y2="16"/></svg></button>
+</div>
+
+</div>
+
+<script>
+/* ═══ ARTIFACT DATA MODEL ════════════════════════ */
+const COLORS=['#5e7ce2','#3ec9b0','#d4a24e','#9b7aed','#e26e5e','#5ec9e2','#7aed9b','#ed7acd'];
+let artifacts=[
+  {id:'appcage',name:'appcage.sh',color:COLORS[0],icon:'shield',status:'building',desc:'Sovereign app container — 1,649 lines\nDocker isolation + GuardDog DNS\n7 apps, 145 filter rules',msgs:[]},
+  {id:'guarddog',name:'guarddog.js',color:COLORS[1],icon:'eye',status:'active',desc:'DNS sinkhole filter — 224 lines\nPort 5354, intercepts all queries\n46/46 tests passing',msgs:[]},
+  {id:'shell',name:'shell-v6.html',color:COLORS[3],icon:'layout',status:'building',desc:'GentlyOS GUI shell\nContext bar + keyboard + side rails\nArtifact hydration system',msgs:[]},
+  {id:'miner',name:'headless-miner.js',color:COLORS[2],icon:'cpu',status:'idle',desc:'Z3RO2Z Bitcoin miner\nSolo headless mining\nDual RTX 3090 Ti',msgs:[]},
+];
+let activeArtifact=null,focus='chat',kbdOpen=false,shifted=false,lExp=false,rExp=false,activeShelf=null,msgIdCounter=0;
+const $=id=>document.getElementById(id);
+
+const SVG={
+  shield:'<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  eye:'<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+  layout:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>',
+  cpu:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/></svg>',
+  file:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+};
+
+/* ═══ RENDER CONTEXT BAR ═════════════════════════ */
+function renderCtxBar(){
+  const s=$('ctx-scroll');s.innerHTML='';
+  artifacts.forEach(a=>{
+    const p=document.createElement('div');
+    p.className='ctx-pill'+(activeArtifact===a.id?' active':'');
+    p.dataset.id=a.id;
+    p.innerHTML=`<span class="ctx-dot" style="background:${a.color}"></span><span class="ctx-name">${a.name}</span><span class="ctx-count">${a.msgs.length}</span>`;
+    p.addEventListener('click',()=>hydrateArtifact(a.id));
+    s.appendChild(p);
+  });
+}
+
+/* ═══ HYDRATE ARTIFACT onto surface ══════════════ */
+function hydrateArtifact(id){
+  activeArtifact=id;
+  const a=artifacts.find(x=>x.id===id);
+  if(!a)return;
+  renderCtxBar();
+  const v=$('artifact-view');
+  v.classList.add('hydrated');
+  $('surface-artifact').textContent=a.name;
+  $('pc').textContent=a.status.toUpperCase();
+
+  let tagged='';
+  if(a.msgs.length){
+    tagged=`<div class="av-msgs"><div class="av-msgs-title">TAGGED MESSAGES (${a.msgs.length})</div>`;
+    a.msgs.forEach(m=>{
+      tagged+=`<div class="av-msg" style="border-color:${m.from==='user'?'var(--accent)':'var(--border)'};background:${m.from==='user'?'var(--accent-dim)':'var(--panel)'}">${m.text}</div>`;
+    });
+    tagged+='</div>';
+  }
+
+  v.innerHTML=`
+    <div class="av-header">
+      <div class="av-icon" style="background:${a.color};color:#fff"><span class="i-s" style="display:flex;align-items:center;justify-content:center">${SVG[a.icon]||SVG.file}</span></div>
+      <div class="av-name">${a.name}</div>
+      <span class="av-status" style="background:${a.status==='active'?'var(--teal-dim)':a.status==='building'?'var(--amber-dim)':'var(--surface)'};color:${a.status==='active'?'var(--teal)':a.status==='building'?'var(--amber)':'var(--dim)'};border:1px solid ${a.status==='active'?'var(--teal)':a.status==='building'?'var(--amber)':'var(--border)'}">${a.status.toUpperCase()}</span>
+    </div>
+    <div class="av-body">${a.desc}</div>
+    ${tagged}
+  `;
+}
+
+/* ═══ MESSAGES WITH TAGGING ══════════════════════ */
+function addMsg(from,text,artifactId){
+  const id=++msgIdCounter;
+  const msgs=$('msgs');
+  const d=document.createElement('div');
+  d.className='m '+(from==='user'?'u':'c');
+  d.dataset.mid=id;
+
+  let tagHtml='';
+  if(artifactId){
+    const a=artifacts.find(x=>x.id===artifactId);
+    if(a){
+      a.msgs.push({id,from,text});
+      tagHtml=`<div class="mtag" style="background:${a.color}22;border:1px solid ${a.color}44;color:${a.color}" onclick="hydrateArtifact('${a.id}')"><span class="mtag-dot" style="background:${a.color}"></span>${a.name}</div>`;
+      renderCtxBar();
+      if(activeArtifact===a.id)hydrateArtifact(a.id);
+    }
+  }
+
+  // Tag button for untagged messages
+  const tagBtn=artifactId?'':`<button class="tag-btn" onclick="showTagPicker(event,${id})"><svg class="i-xs" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>`;
+
+  d.innerHTML=text+tagHtml+tagBtn;
+  msgs.appendChild(d);
+  msgs.scrollTop=99999;
+  return id;
+}
+
+function showTagPicker(e,mid){
+  e.stopPropagation();
+  // Remove any existing pickers
+  document.querySelectorAll('.tag-picker.show').forEach(p=>p.classList.remove('show'));
+  const btn=e.currentTarget;
+  const msg=btn.closest('.m');
+  let picker=msg.querySelector('.tag-picker');
+  if(!picker){
+    picker=document.createElement('div');
+    picker.className='tag-picker';
+    artifacts.forEach(a=>{
+      const item=document.createElement('div');
+      item.className='tp-item';
+      item.innerHTML=`<span class="tp-dot" style="background:${a.color}"></span>${a.name}`;
+      item.addEventListener('click',(ev)=>{
+        ev.stopPropagation();
+        tagMessage(mid,a.id);
+        picker.classList.remove('show');
+      });
+      picker.appendChild(item);
+    });
+    msg.appendChild(picker);
+  }
+  picker.classList.add('show');
+  setTimeout(()=>document.addEventListener('click',()=>picker.classList.remove('show'),{once:true}),10);
+}
+
+function tagMessage(mid,artifactId){
+  const a=artifacts.find(x=>x.id===artifactId);
+  const msgEl=document.querySelector(`[data-mid="${mid}"]`);
+  if(!a||!msgEl)return;
+  const text=msgEl.textContent;
+  a.msgs.push({id:mid,from:msgEl.classList.contains('u')?'user':'claude',text:text.substring(0,80)});
+  // Add tag badge, remove tag button
+  const btn=msgEl.querySelector('.tag-btn');if(btn)btn.remove();
+  const picker=msgEl.querySelector('.tag-picker');if(picker)picker.remove();
+  const tag=document.createElement('div');
+  tag.className='mtag';
+  tag.style.cssText=`background:${a.color}22;border:1px solid ${a.color}44;color:${a.color}`;
+  tag.innerHTML=`<span class="mtag-dot" style="background:${a.color}"></span>${a.name}`;
+  tag.addEventListener('click',()=>hydrateArtifact(a.id));
+  msgEl.appendChild(tag);
+  renderCtxBar();
+  if(activeArtifact===a.id)hydrateArtifact(a.id);
+}
+
+/* ═══ BOOT CONVERSATION ══════════════════════════ */
+function bootConversation(){
+  addMsg('claude','Context bar active. Each pill is an artifact in the loop. Click to hydrate onto surface. Tag messages to link them.',null);
+  addMsg('user','let\'s work on the shell layout','shell');
+  addMsg('claude','Shell v6 building. Bottom bar now shows context artifacts instead of nav buttons. Messages tagged to artifacts appear on the surface when hydrated.','shell');
+  addMsg('user','check the DNS filter tests','guarddog');
+  addMsg('claude','All 46 filter tests passing. Sinkhole active on port 5354. No regressions from last run.','guarddog');
+  addMsg('user','add BTC miner to the appcage','appcage');
+  addMsg('claude','BTC Miner added as 8th container. Z3RO2Z headless mode, solo mining, dual 3090 Ti. Container config written to <code>~/.gentlyos/appcage/data/miner/</code>','appcage');
+  addMsg('user','now keyboard with side rails','shell');
+}
+
+/* ═══ FOCUS ═══════════════════════════════════════ */
+const FL={chat:'SEND',surface:'DROP',terminal:'RUN',search:'FIND'};
+const FP={chat:'Message Claude...',surface:'Command surface...',terminal:'$ shell command...',search:'Search everything...'};
+function setFocus(f){
+  focus=f;
+  document.querySelectorAll('.ftab').forEach(t=>t.classList.toggle('on',t.dataset.f===f));
+  $('enter-label').textContent=FL[f]||'SEND';
+  $('kbd-input').placeholder=FP[f]||'Type...';
+}
+document.querySelectorAll('.ftab').forEach(t=>t.addEventListener('click',()=>setFocus(t.dataset.f)));
+
+/* ═══ KEYBOARD ════════════════════════════════════ */
+$('kbd-trigger').addEventListener('click',()=>{kbdOpen?closeKbd():openKbd()});
+$('kbd-close').addEventListener('click',closeKbd);
+function openKbd(){closeShelf();kbdOpen=true;$('shell').classList.add('kbd-on');$('kbd-wrap').classList.add('open');$('kbd-trigger').classList.add('open');setTimeout(()=>$('kbd-input').focus(),120)}
+function closeKbd(){kbdOpen=false;$('shell').classList.remove('kbd-on');$('kbd-wrap').classList.remove('open');$('kbd-trigger').classList.remove('open')}
+
+document.querySelectorAll('.k').forEach(k=>{
+  k.addEventListener('click',()=>{
+    const t=k.textContent.trim();
+    if(k.classList.contains('space'))$('kbd-input').value+=' ';
+    else if(k.classList.contains('back'))$('kbd-input').value=$('kbd-input').value.slice(0,-1);
+    else if(k.classList.contains('enter'))submitInput();
+    else if(k.classList.contains('shift')){shifted=!shifted;document.querySelectorAll('.k.shift').forEach(s=>{s.style.background=shifted?'var(--accent)':'';s.style.color=shifted?'#fff':''});}
+    else if(t!=='123'){$('kbd-input').value+=(shifted?t.toUpperCase():t);if(shifted){shifted=false;document.querySelectorAll('.k.shift').forEach(s=>{s.style.background='';s.style.color='';});}}
+    $('kbd-input').focus();
+  });
+});
+$('kbd-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitInput();}if(e.key==='Escape')closeKbd();});
+$('kbd-enter').addEventListener('click',submitInput);
+
+function submitInput(){
+  const v=$('kbd-input').value.trim();if(!v)return;
+  // Auto-tag to active artifact
+  addMsg('user',v,activeArtifact);
+  $('kbd-input').value='';
+  // Simulate response
+  setTimeout(()=>addMsg('claude','Received: <code>'+v+'</code>',activeArtifact),350);
+}
+
+/* ═══ RAILS ═══════════════════════════════════════ */
+$('tog-L').addEventListener('click',()=>{lExp=!lExp;updateRails()});
+$('tog-R').addEventListener('click',()=>{rExp=!rExp;updateRails()});
+function updateRails(){
+  const b=$('kbd-body');b.className='';b.id='kbd-body';
+  if(lExp&&rExp)b.classList.add('lr-exp');else if(lExp)b.classList.add('l-exp');else if(rExp)b.classList.add('r-exp');
+  $('rail-L').classList.toggle('expanded',lExp);$('rail-R').classList.toggle('expanded',rExp);
+  $('tog-L').classList.toggle('on',lExp);$('tog-R').classList.toggle('on',rExp);
+  $('tog-L').innerHTML=lExp?'<svg class="i-xs" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>':'<svg class="i-xs" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>';
+  $('tog-R').innerHTML=rExp?'<svg class="i-xs" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>':'<svg class="i-xs" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>';
+}
+
+document.querySelectorAll('.macro').forEach(m=>m.addEventListener('click',()=>{addMsg('claude',`<code>[macro] ${m.dataset.cmd}</code>`,activeArtifact)}));
+
+/* ═══ SHELF ═══════════════════════════════════════ */
+const SH={
+  apps:()=>{
+    const apps=[{n:'Steam',c:'#1b2838',d:'Gaming + Proton',t:'14 rules'},{n:'Discord',c:'#3d43a5',d:'Voice stripped',t:'30 rules'},{n:'Spotify',c:'#1a7a42',d:'Ads blocked',t:'21 rules'},{n:'Telegram',c:'#0077b5',d:'Already private',t:'6 rules'},{n:'BTC Miner',c:'#8a5c10',d:'Z3RO2Z solo',t:'SOLO'}];
+    return '<div class="sec">APPCAGE CONTAINERS</div>'+apps.map(a=>`<div class="lego"><div class="li" style="background:${a.c};color:#fff"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div><div style="flex:1"><div class="ln">${a.n}</div><div class="ld">${a.d}</div></div><span class="lt">${a.t}</span></div>`).join('');
+  },
+  tools:()=>{
+    const tools=[{n:'DNS Filter',d:'145 rules sinkhole',t:'ALWAYS ON'},{n:'.env Vault',d:'AES-256-GCM',t:'T0'},{n:'Fork Tree',d:'Rewindable DAG',t:'T1'}];
+    return '<div class="sec">GUARDDOG</div>'+tools.map(t=>`<div class="lego"><div class="li" style="background:#1a6050;color:#fff"><svg class="i" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div style="flex:1"><div class="ln">${t.n}</div><div class="ld">${t.d}</div></div><span class="lt">${t.t}</span></div>`).join('');
+  },
+};
+function openShelf(w){if(activeShelf===w){closeShelf();return;}closeKbd();activeShelf=w;$('sh-title').textContent=w.toUpperCase();$('sh-body').innerHTML=(SH[w]||SH.apps)();$('shelf-wrap').classList.add('open');document.querySelectorAll('.ctx-shelf-btn').forEach(b=>b.classList.toggle('active',b.dataset.shelf===w));}
+function closeShelf(){activeShelf=null;$('shelf-wrap').classList.remove('open');document.querySelectorAll('.ctx-shelf-btn').forEach(b=>b.classList.remove('active'));}
+document.querySelectorAll('.ctx-shelf-btn').forEach(b=>b.addEventListener('click',()=>openShelf(b.dataset.shelf)));
+$('sh-x').addEventListener('click',closeShelf);
+
+/* ═══ ADD ARTIFACT ════════════════════════════════ */
+$('ctx-add').addEventListener('click',()=>{
+  const name=prompt('Artifact name:');
+  if(!name)return;
+  const c=COLORS[artifacts.length%COLORS.length];
+  artifacts.push({id:'art-'+Date.now(),name,color:c,icon:'file',status:'building',desc:'New artifact\nCreated from context bar',msgs:[]});
+  renderCtxBar();
+});
+
+/* ═══ BOOT ════════════════════════════════════════ */
+setFocus('chat');
+renderCtxBar();
+bootConversation();
+hydrateArtifact('shell');
+</script>
+</body>
+</html>

@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GentlyOS — Sovereignty Stack</title>
+<style>
+:root {
+  --bg: #08080c;
+  --surface: #0e0e16;
+  --card: #12121c;
+  --elevated: #18182a;
+  --border: #1a1a2e;
+  --text: #e0e0e8;
+  --muted: #9999aa;
+  --dim: #666680;
+  --vdim: #333348;
+
+  --sdk:     #ff4444;
+  --core:    #ff6b9d;
+  --dev:     #c77dff;
+  --app:     #00e5a0;
+  --feed:    #4d9fff;
+  --warn:    #ffd93d;
+
+  --font: 'SF Mono','JetBrains Mono','Fira Code',monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--font); }
+
+/* Sections */
+.hero { padding:60px 40px 30px; text-align:center; border-bottom:1px solid var(--border); }
+.hero h1 { font-size:20px; letter-spacing:4px; color:var(--text); font-weight:300; margin-bottom:8px; }
+.hero .sub { font-size:10px; color:var(--dim); letter-spacing:1px; max-width:600px; margin:0 auto; line-height:1.7; }
+
+.section { padding:40px; border-bottom:1px solid var(--border); }
+.section-num { font-size:8px; letter-spacing:3px; color:var(--dim); margin-bottom:4px; }
+.section-title { font-size:16px; margin-bottom:6px; font-weight:400; }
+.section-desc { font-size:10px; color:var(--muted); max-width:700px; margin-bottom:24px; line-height:1.7; }
+
+/* Stack diagram */
+.stack { max-width:700px; margin:0 auto 30px; }
+.stack-layer {
+  display:grid; grid-template-columns:100px 1fr 140px;
+  align-items:center; gap:12px;
+  padding:14px 16px; margin:2px 0;
+  border-radius:4px; font-size:10px;
+}
+.sl-level { font-size:7px; letter-spacing:2px; font-weight:700; }
+.sl-name { font-size:12px; font-weight:500; }
+.sl-desc { color:var(--muted); font-size:9px; line-height:1.5; }
+.sl-perm { font-size:8px; text-align:right; }
+
+.sl-sdk { background:color-mix(in srgb, var(--sdk) 8%, var(--card)); border:1px solid color-mix(in srgb, var(--sdk) 20%, var(--border)); }
+.sl-sdk .sl-level, .sl-sdk .sl-name { color:var(--sdk); }
+.sl-core { background:color-mix(in srgb, var(--core) 8%, var(--card)); border:1px solid color-mix(in srgb, var(--core) 20%, var(--border)); }
+.sl-core .sl-level, .sl-core .sl-name { color:var(--core); }
+.sl-dev { background:color-mix(in srgb, var(--dev) 8%, var(--card)); border:1px solid color-mix(in srgb, var(--dev) 20%, var(--border)); }
+.sl-dev .sl-level, .sl-dev .sl-name { color:var(--dev); }
+.sl-app { background:color-mix(in srgb, var(--app) 8%, var(--card)); border:1px solid color-mix(in srgb, var(--app) 20%, var(--border)); }
+.sl-app .sl-level, .sl-app .sl-name { color:var(--app); }
+.sl-feed { background:color-mix(in srgb, var(--feed) 8%, var(--card)); border:1px solid color-mix(in srgb, var(--feed) 20%, var(--border)); }
+.sl-feed .sl-level, .sl-feed .sl-name { color:var(--feed); }
+
+.freeze-line {
+  display:flex; align-items:center; gap:8px;
+  padding:4px 16px; font-size:7px; letter-spacing:2px; color:var(--warn);
+}
+.freeze-line::before, .freeze-line::after { content:''; flex:1; height:1px; background:var(--warn); opacity:0.3; }
+
+/* Cards */
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:14px; }
+.card {
+  background:var(--card); border:1px solid var(--border); border-radius:6px; padding:18px;
+  transition:border-color 200ms;
+}
+.card:hover { border-color:var(--dim); }
+.card-label { font-size:7px; letter-spacing:2px; color:var(--dim); margin-bottom:6px; }
+.card-title { font-size:12px; margin-bottom:10px; font-weight:500; }
+.card-body { font-size:9px; color:var(--muted); line-height:1.7; }
+.card-body strong { color:var(--text); font-weight:500; }
+
+.diagram {
+  font-size:9px; line-height:1.5; color:var(--dim);
+  white-space:pre; padding:10px; background:var(--bg);
+  border:1px solid var(--border); border-radius:4px;
+  margin:10px 0; overflow-x:auto;
+}
+
+.tag { display:inline-block; padding:2px 6px; border-radius:3px; font-size:7px; letter-spacing:0.5px; margin:1px; }
+.tag-sdk { background:color-mix(in srgb, var(--sdk) 12%, var(--bg)); color:var(--sdk); border:1px solid color-mix(in srgb, var(--sdk) 25%, var(--border)); }
+.tag-core { background:color-mix(in srgb, var(--core) 12%, var(--bg)); color:var(--core); border:1px solid color-mix(in srgb, var(--core) 25%, var(--border)); }
+.tag-dev { background:color-mix(in srgb, var(--dev) 12%, var(--bg)); color:var(--dev); border:1px solid color-mix(in srgb, var(--dev) 25%, var(--border)); }
+.tag-app { background:color-mix(in srgb, var(--app) 12%, var(--bg)); color:var(--app); border:1px solid color-mix(in srgb, var(--app) 25%, var(--border)); }
+.tag-feed { background:color-mix(in srgb, var(--feed) 12%, var(--bg)); color:var(--feed); border:1px solid color-mix(in srgb, var(--feed) 25%, var(--border)); }
+
+.insight {
+  background:color-mix(in srgb, var(--app) 4%, var(--bg));
+  border:1px solid color-mix(in srgb, var(--app) 15%, var(--border));
+  border-radius:6px; padding:18px; margin-top:24px;
+}
+.insight-title { font-size:8px; letter-spacing:2px; margin-bottom:8px; }
+.insight-body { font-size:10px; color:var(--muted); line-height:1.7; }
+.insight-body strong { color:var(--text); }
+
+/* Toolbar mockup */
+.toolbar-mock {
+  background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  padding:12px; margin:14px 0;
+}
+.tb-bar {
+  display:flex; gap:6px; padding:6px 8px;
+  background:var(--card); border:1px solid var(--border); border-radius:4px;
+  align-items:center; overflow-x:auto;
+}
+.tb-app {
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:6px 10px; border-radius:4px; cursor:pointer;
+  transition:all 120ms; min-width:52px;
+}
+.tb-app:hover { background:var(--elevated); }
+.tb-icon { font-size:16px; }
+.tb-name { font-size:6px; letter-spacing:0.5px; color:var(--dim); white-space:nowrap; }
+.tb-app.pinned { background:color-mix(in srgb, var(--app) 6%, var(--card)); }
+.tb-app.pinned .tb-name { color:var(--app); }
+.tb-divider { width:1px; height:28px; background:var(--border); flex-shrink:0; }
+
+/* Feed mockup */
+.feed-mock {
+  background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  padding:12px; margin:14px 0;
+}
+.feed-item {
+  display:flex; gap:10px; padding:10px;
+  border-bottom:1px solid var(--border);
+}
+.feed-item:last-child { border-bottom:none; }
+.fi-icon { font-size:20px; flex-shrink:0; width:32px; height:32px; display:flex; align-items:center; justify-content:center; background:var(--card); border:1px solid var(--border); border-radius:6px; }
+.fi-body { flex:1; }
+.fi-title { font-size:10px; color:var(--text); margin-bottom:2px; }
+.fi-desc { font-size:8px; color:var(--dim); line-height:1.5; }
+.fi-meta { display:flex; gap:8px; margin-top:4px; font-size:7px; }
+.fi-meta span { color:var(--dim); }
+.fi-actions { display:flex; gap:4px; margin-top:6px; }
+.fi-btn { padding:3px 8px; font-size:7px; border:1px solid var(--border); border-radius:3px; color:var(--dim); cursor:pointer; background:transparent; }
+.fi-btn:hover { border-color:var(--app); color:var(--app); }
+.fi-btn.primary { border-color:var(--app); color:var(--app); }
+
+.final { padding:60px 40px; text-align:center; }
+.final-line { font-size:11px; color:var(--dim); margin:4px 0; }
+.final-big { font-size:16px; color:var(--text); margin:16px 0; letter-spacing:2px; }
+.final-accent { color:var(--app); }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <h1>GENTLYOS SOVEREIGNTY STACK</h1>
+  <div class="sub">
+    Four tiers. Each one frozen from the tier below it.
+    You control the SDK. You ship the Core OS. Developers build in the sandbox.
+    Apps morph themselves but can never break the chain.
+  </div>
+</div>
+
+<!-- ═══ THE STACK ═══ -->
+<div class="section">
+  <div class="section-num">THE STACK</div>
+  <div class="section-title">Four Tiers of Sovereignty</div>
+  <div class="section-desc">
+    Each tier can only see upward. Each tier is frozen from the one below.
+    The SDK root is yours alone. Everything above it inherits your decisions.
+  </div>
+
+  <div class="stack">
+    <div class="stack-layer sl-feed">
+      <div><div class="sl-level">TIER 4</div></div>
+      <div><div class="sl-name">Feed + Marketplace</div><div class="sl-desc">Shared apps, pinned to feeds, discoverable by other users. Read-only unless forked.</div></div>
+      <div class="sl-perm" style="color:var(--feed)">👁 view · 📌 pin · 🔀 fork</div>
+    </div>
+
+    <div class="freeze-line">❄ SHARE BOUNDARY — apps become read-only when published</div>
+
+    <div class="stack-layer sl-app">
+      <div><div class="sl-level">TIER 3</div></div>
+      <div><div class="sl-name">App Layer</div><div class="sl-desc">Self-morphing apps built in Proton. Run in hardlocked iframe. Can edit themselves, can't touch anything else.</div></div>
+      <div class="sl-perm" style="color:var(--app)">✎ self-edit · 📌 pin · 📤 share</div>
+    </div>
+
+    <div class="freeze-line">❄ APP SANDBOX — apps can't access dev tools or core</div>
+
+    <div class="stack-layer sl-dev">
+      <div><div class="sl-level">TIER 2</div></div>
+      <div><div class="sl-name">Developer Layer</div><div class="sl-desc">Proton workbench + Claude + terminal + git. Build apps here. Ship to Tier 3. Can't modify Core OS.</div></div>
+      <div class="sl-perm" style="color:var(--dev)">✎ create apps · 🔧 dev tools · 📤 publish</div>
+    </div>
+
+    <div class="freeze-line">❄ CORE FREEZE — devs can't modify the OS or shell</div>
+
+    <div class="stack-layer sl-core">
+      <div><div class="sl-level">TIER 1</div></div>
+      <div><div class="sl-name">Core OS</div><div class="sl-desc">Gently Shell + NixOS config + system apps + design tokens + default pinned apps. Shipped as a distribution. Tom's product.</div></div>
+      <div class="sl-perm" style="color:var(--core)">🔒 Tom only · ✎ full config · 📦 ship</div>
+    </div>
+
+    <div class="freeze-line">❄ SDK ROOT — immutable foundation, never shipped</div>
+
+    <div class="stack-layer sl-sdk">
+      <div><div class="sl-level">TIER 0</div></div>
+      <div><div class="sl-name">SDK Root</div><div class="sl-desc">NixOS flake + Rust crates + Electron source + crypto keys + build system. Tom's workbench. Never leaves his machine.</div></div>
+      <div class="sl-perm" style="color:var(--sdk)">🔑 Tom only · root · source</div>
+    </div>
+  </div>
+
+  <div class="diagram" style="max-width:700px;margin:0 auto">
+<span style="color:var(--sdk)">TIER 0  SDK ROOT (Tom's 3090 rig)</span>
+  │
+  │ nix build → produces ISO/image
+  ▼
+<span style="color:var(--core)">TIER 1  CORE OS (shipped product)</span>
+  │
+  │ boots → frozen shell + dev tools available
+  ▼
+<span style="color:var(--dev)">TIER 2  DEV LAYER (other developers)</span>
+  │
+  │ Proton workbench → builds apps in sandbox
+  ▼
+<span style="color:var(--app)">TIER 3  APP LAYER (running apps)</span>
+  │
+  │ pin → share → publish
+  ▼
+<span style="color:var(--feed)">TIER 4  FEED (marketplace / community)</span>
+
+Each arrow is a <span style="color:var(--warn)">freeze boundary</span>.
+Information flows up. Control flows down.
+  </div>
+</div>
+
+<!-- ═══ TIER 0: SDK ROOT ═══ -->
+<div class="section" style="background:var(--surface)">
+  <div class="section-num">TIER 0 — <span style="color:var(--sdk)">SDK ROOT</span></div>
+  <div class="section-title">Your Workbench. Never Shipped.</div>
+  <div class="section-desc">
+    This is where GentlyOS is built. The Rust crates, the NixOS flake,
+    the Electron source, the crypto keys. It lives on your 3090 rig and nowhere else.
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">WHAT LIVES HERE</div>
+      <div class="card-title" style="color:var(--sdk)">The Source</div>
+      <div class="diagram">~/gentlyos/
+├── flake.nix              <span style="color:var(--sdk)">← the entire OS definition</span>
+├── crates/                <span style="color:var(--sdk)">← 17 Rust crates</span>
+│   ├── gently-core/
+│   ├── gently-crypto/
+│   ├── gently-shell/
+│   └── ...
+├── electron/              <span style="color:var(--sdk)">← shell + workbench + proton</span>
+│   ├── shell.html
+│   ├── main.js
+│   └── workbench.html
+├── keys/                  <span style="color:var(--sdk)">← signing keys (GPG, NixOS)</span>
+└── dist/                  <span style="color:var(--sdk)">← built ISOs + images</span></div>
+      <div class="card-body">
+        <strong>Only you can modify this.</strong> The signing keys mean only you can produce
+        a valid Core OS image. Even if someone gets the source, they can't sign a release.
+        The NixOS flake is deterministic — same source always produces same output.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">BUILD PIPELINE</div>
+      <div class="card-title" style="color:var(--sdk)">SDK → Core OS</div>
+      <div class="diagram"><span style="color:var(--sdk)">nix build .#gentlyos-iso</span>
+
+Steps:
+1. Compile 17 Rust crates → binary artifacts
+2. Bundle Electron app → asar archive
+3. Fetch Claude CLI binary
+4. Assemble NixOS system closure
+5. Sign with Tom's GPG key
+6. Produce bootable ISO / disk image
+
+Output:
+  dist/gentlyos-v1.0-signed.iso  (4.2 GB)
+  dist/gentlyos-v1.0.sha256      (signed hash)</div>
+      <div class="card-body">
+        One command. Deterministic. Signed. The ISO contains everything needed
+        to boot a machine into Gently. NixOS guarantees byte-for-byte reproducibility.
+        <strong>Your build. Your signature. Your distribution.</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TIER 1: CORE OS ═══ -->
+<div class="section">
+  <div class="section-num">TIER 1 — <span style="color:var(--core)">CORE OS</span></div>
+  <div class="section-title">The Distribution. What Gets Shipped.</div>
+  <div class="section-desc">
+    You configure this layer exactly how you want it. Default apps, design tokens,
+    pinned tools, system behavior. Developers who install GentlyOS get this, frozen.
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">WHAT YOU CONTROL</div>
+      <div class="card-title" style="color:var(--core)">Core Configuration</div>
+      <div class="card-body">
+        <strong>Design tokens:</strong> Every color, font, spacing in the shell. You set the aesthetic.
+        Developers can theme their apps but can't change the shell chrome.
+        <br><br>
+        <strong>System apps:</strong> Pre-installed, pinned to the default toolbar. These are YOUR low-level
+        focused apps — the tools every developer needs out of the box.
+        <br><br>
+        <strong>Shell behavior:</strong> Gate definitions, stamp format, clan rules, collapse logic.
+        The mechanics of how Gently works. Frozen for developers.
+        <br><br>
+        <strong>Security policy:</strong> What the sandbox allows. What apps can access.
+        Network rules, file system boundaries, crypto requirements.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">DEFAULT PINNED APPS</div>
+      <div class="card-title" style="color:var(--core)">The Toolbar Ships Pre-Loaded</div>
+      <div class="toolbar-mock">
+        <div style="font-size:7px;letter-spacing:2px;color:var(--dim);margin-bottom:6px">CORE TOOLBAR (frozen — devs can add, not remove)</div>
+        <div class="tb-bar">
+          <div class="tb-app pinned">
+            <span class="tb-icon">◆</span>
+            <span class="tb-name" style="color:var(--core)">SHELL</span>
+          </div>
+          <div class="tb-divider"></div>
+          <div class="tb-app pinned">
+            <span class="tb-icon">⚙</span>
+            <span class="tb-name">Terminal</span>
+          </div>
+          <div class="tb-app pinned">
+            <span class="tb-icon">⑂</span>
+            <span class="tb-name">Git</span>
+          </div>
+          <div class="tb-app pinned">
+            <span class="tb-icon">📊</span>
+            <span class="tb-name">GPU Mon</span>
+          </div>
+          <div class="tb-app pinned">
+            <span class="tb-icon">🔐</span>
+            <span class="tb-name">Vault</span>
+          </div>
+          <div class="tb-app pinned">
+            <span class="tb-icon">📡</span>
+            <span class="tb-name">Network</span>
+          </div>
+          <div class="tb-divider"></div>
+          <div class="tb-app" style="opacity:0.4">
+            <span class="tb-icon">+</span>
+            <span class="tb-name" style="color:var(--dev)">dev apps →</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        Core apps are <span class="tag tag-core">FROZEN</span> in the toolbar. Developers see them,
+        use them, but can't uninstall or modify them. These are your low-level power tools:
+        system terminal, git visualization, GPU monitoring, encrypted vault, network inspector.
+        Developers add their own apps to the RIGHT side of the divider.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">NixOS ENFORCEMENT</div>
+      <div class="card-title" style="color:var(--core)">How the Freeze Works</div>
+      <div class="diagram"><span style="color:var(--core)"># /etc/nixos/core-policy.nix</span>
+
+{
+  <span style="color:var(--core)">gently.core</span> = {
+    <span style="color:var(--muted)"># Shell source — read-only for all users</span>
+    shell.source = /nix/store/...-gently-shell;
+    shell.mutable = false;
+
+    <span style="color:var(--muted)"># Core apps — frozen in toolbar</span>
+    pinnedApps = [
+      "terminal" "git-viz" "gpu-mon"
+      "vault" "network-inspector"
+    ];
+    pinnedApps.removable = false;
+
+    <span style="color:var(--muted)"># Dev sandbox boundaries</span>
+    sandbox.allowNetwork = true;
+    sandbox.allowGPU = true;
+    sandbox.allowFS = [ "/home/*/projects" ];
+    sandbox.denyFS = [ "/etc" "/nix" "/boot" ];
+
+    <span style="color:var(--muted)"># App sandbox (stricter)</span>
+    appSandbox.allowNetwork = false; <span style="color:var(--warn)"># per-app opt-in</span>
+    appSandbox.allowFS = [ "$APP_DIR" ];
+    appSandbox.maxMemory = "512M";
+  };
+}</div>
+      <div class="card-body">
+        NixOS declarative config enforces the boundaries. The <strong>/nix/store</strong> is read-only
+        by design. Core apps are installed as system packages — only root (only nix-rebuild,
+        only from your signed flake) can change them. Developers can't sudo. Apps can't
+        write outside their directory. <strong>The freeze is filesystem-level, not just UI-level.</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TIER 2: DEV LAYER ═══ -->
+<div class="section" style="background:var(--surface)">
+  <div class="section-num">TIER 2 — <span style="color:var(--dev)">DEVELOPER LAYER</span></div>
+  <div class="section-title">Where Other Devs Build. High-Level SDK.</div>
+  <div class="section-desc">
+    Developers get the full Gently experience: Focus + Process + Proton.
+    They build apps in Proton's sandboxed workbench. Claude helps them code.
+    They can't modify the shell, the core apps, or the OS config.
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">WHAT DEVS SEE</div>
+      <div class="card-title" style="color:var(--dev)">The Development Experience</div>
+      <div class="diagram">┌──────────────────────────────────────────┐
+│ <span style="color:var(--core)">GENTLY SHELL (frozen, can't edit)</span>              │
+│ ┌──────────┬────────────────────────┐    │
+│ │ <span style="color:var(--app)">FOCUS</span>    │ <span style="color:var(--dev)">PROTON (their workbench)</span>  │    │
+│ │          │ ┌──────────┬─────────┐ │    │
+│ │ Claude   │ │ preview  │ editor  │ │    │
+│ │ helps    │ │ (their   │ (their  │ │    │
+│ │ them     │ │  app     │  code)  │ │    │
+│ │ code     │ │  running)│         │ │    │
+│ │          │ └──────────┴─────────┘ │    │
+│ └──────────┴────────────────────────┘    │
+│ <span style="color:var(--core)">[Terminal] [Gates] [Stamp] [Keyboard]</span>      │
+│ <span style="color:var(--core)">[◆Shell][⚙Term][⑂Git][📊GPU] │ + <span style="color:var(--dev)">their apps</span></span> │
+└──────────────────────────────────────────┘</div>
+      <div class="card-body">
+        Developers use the same Gently workflow you do: clans for parallel exploration,
+        gates for state tracking, stamps for git-linked checkpoints. But their Proton
+        workbench is <strong>sandboxed</strong> — the apps they build run inside the hardlocked iframe.
+        They can't modify the shell chrome around them.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">APP CREATION FLOW</div>
+      <div class="card-title" style="color:var(--dev)">From Idea to Pinned App</div>
+      <div class="card-body">
+        <strong>1. Create project</strong> — <code style="color:var(--dev)">gently init my-app</code> in terminal.
+        Git repo created. Clan started. Proton opens with empty scaffold.
+        <br><br>
+        <strong>2. Build in Proton</strong> — Claude in Focus pane helps write the code.
+        Proton shows live preview. Terminal runs builds. Gates track features.
+        <br><br>
+        <strong>3. Pin locally</strong> — App works. Dev clicks <span class="tag tag-app">📌 PIN</span>.
+        App appears in their toolbar after the core apps divider.
+        Launches in its own hardlocked frame. Self-contained.
+        <br><br>
+        <strong>4. Share / publish</strong> — Dev clicks <span class="tag tag-feed">📤 SHARE</span>.
+        App gets a signed manifest. Published to feed.
+        Other users can pin it. Source optional (open/closed).
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">WHAT DEVS CAN'T DO</div>
+      <div class="card-title" style="color:var(--warn)">The Freeze From Above</div>
+      <div class="card-body">
+        <span class="tag tag-sdk">✕</span> Modify NixOS system configuration<br>
+        <span class="tag tag-sdk">✕</span> Access /etc, /nix/store, /boot<br>
+        <span class="tag tag-core">✕</span> Edit the Gently Shell source<br>
+        <span class="tag tag-core">✕</span> Remove core pinned apps from toolbar<br>
+        <span class="tag tag-core">✕</span> Change design tokens of the shell chrome<br>
+        <span class="tag tag-core">✕</span> Modify stamp format or gate mechanics<br>
+        <span class="tag tag-core">✕</span> Access other users' app data<br>
+        <br>
+        <span class="tag tag-dev">✓</span> Build apps in sandboxed Proton<br>
+        <span class="tag tag-dev">✓</span> Use Claude, terminal, git, GPU<br>
+        <span class="tag tag-dev">✓</span> Pin their apps to their own toolbar<br>
+        <span class="tag tag-dev">✓</span> Publish apps to the feed<br>
+        <span class="tag tag-dev">✓</span> Theme their apps (not the shell)<br>
+        <span class="tag tag-dev">✓</span> Access network (for their apps, via opt-in)<br>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TIER 3: APP LAYER ═══ -->
+<div class="section">
+  <div class="section-num">TIER 3 — <span style="color:var(--app)">APP LAYER</span></div>
+  <div class="section-title">Self-Morphing Apps. Pinned. Shared. Alive.</div>
+  <div class="section-desc">
+    Apps built in Proton become first-class citizens of GentlyOS.
+    They run in hardlocked iframes. They can edit themselves. They can't edit anything else.
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">SELF-MORPHING</div>
+      <div class="card-title" style="color:var(--app)">Apps That Edit Themselves</div>
+      <div class="diagram">┌─ App: "Pixel Art Editor" ─────────────────┐
+│                                            │
+│  ┌──────────────────────┐                  │
+│  │  Canvas (user draws) │  The app runs.   │
+│  └──────────────────────┘  User uses it.   │
+│                                            │
+│  User: "I want a layer panel"              │
+│                                            │
+│  App opens its OWN Proton mini-workbench:  │
+│  ┌─────────────┬────────────┐              │
+│  │ live app    │ app source │              │
+│  │ (preview)   │ (editor)   │              │
+│  └─────────────┴────────────┘              │
+│                                            │
+│  Claude helps add the layer panel.         │
+│  Preview updates. User likes it. Save.     │
+│  App morphs. Proton closes. App continues. │
+│                                            │
+│  <span style="color:var(--warn)">The app edited itself inside its own       │
+│  sandbox. Never touched the shell.</span>        │
+└────────────────────────────────────────────┘</div>
+      <div class="card-body">
+        Every app carries its own source. Every app can open a mini-Proton to edit itself.
+        The five hardlock layers protect the shell. The app's Proton is sandboxed inside the
+        app's sandbox. <strong>Double containment.</strong> The app evolves without risk.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">PINNING</div>
+      <div class="card-title" style="color:var(--app)">Toolbar + Quick Launch</div>
+      <div class="toolbar-mock">
+        <div style="font-size:7px;letter-spacing:2px;color:var(--dim);margin-bottom:6px">FULL TOOLBAR</div>
+        <div class="tb-bar">
+          <div class="tb-app pinned"><span class="tb-icon">◆</span><span class="tb-name" style="color:var(--core)">SHELL</span></div>
+          <div class="tb-app pinned"><span class="tb-icon">⚙</span><span class="tb-name">Term</span></div>
+          <div class="tb-app pinned"><span class="tb-icon">⑂</span><span class="tb-name">Git</span></div>
+          <div class="tb-app pinned"><span class="tb-icon">📊</span><span class="tb-name">GPU</span></div>
+          <div class="tb-app pinned"><span class="tb-icon">🔐</span><span class="tb-name">Vault</span></div>
+          <div class="tb-divider"></div>
+          <div class="tb-app pinned"><span class="tb-icon">🎨</span><span class="tb-name" style="color:var(--app)">PixelArt</span></div>
+          <div class="tb-app pinned"><span class="tb-icon">📊</span><span class="tb-name" style="color:var(--app)">Dashboard</span></div>
+          <div class="tb-app pinned"><span class="tb-icon">🎵</span><span class="tb-name" style="color:var(--app)">Synth</span></div>
+          <div class="tb-app"><span class="tb-icon">📝</span><span class="tb-name">Notes</span></div>
+          <div class="tb-app"><span class="tb-icon">🔬</span><span class="tb-name">Shader</span></div>
+        </div>
+      </div>
+      <div class="card-body">
+        Left of divider: <span class="tag tag-core">CORE</span> apps (frozen, yours).
+        Right of divider: <span class="tag tag-app">DEV/USER</span> apps (pinned by the developer).
+        Click an app → it launches in a new Gently window or replaces the Proton pane.
+        <strong>Pinned apps persist across reboots.</strong> They're part of the developer's workspace.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">APP MANIFEST</div>
+      <div class="card-title" style="color:var(--app)">What an App Contains</div>
+      <div class="diagram"><span style="color:var(--app)">gently-app.json</span>
+{
+  "name": "Pixel Art Editor",
+  "version": "1.2.0",
+  "author": "<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6e0a0b182e0b160f031e020b400d0103">[email&#160;protected]</a>",
+  "icon": "🎨",
+
+  <span style="color:var(--muted)">// Permissions (granted by the OS)</span>
+  "permissions": {
+    "network": false,
+    "filesystem": ["$APP_DIR"],
+    "gpu": true,
+    "clipboard": true,
+    "camera": false
+  },
+
+  <span style="color:var(--muted)">// Entry point</span>
+  "main": "index.html",
+
+  <span style="color:var(--muted)">// Self-morph enabled?</span>
+  "morphable": true,
+  "source": "src/",
+
+  <span style="color:var(--muted)">// Stamp integration</span>
+  "stamp": true,
+  "gates": ["layers", "filters", "export"],
+
+  <span style="color:var(--muted)">// Signed by developer</span>
+  "signature": "ed25519:a3f2c1d8..."
+}</div>
+      <div class="card-body">
+        Every app declares what it needs. The OS grants or denies.
+        <strong>morphable: true</strong> means the app can open its own Proton.
+        <strong>stamp: true</strong> means the app integrates with the gate/stamp system.
+        The signature proves the developer built it. Unsigned apps can't be shared.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TIER 4: FEED ═══ -->
+<div class="section" style="background:var(--surface)">
+  <div class="section-num">TIER 4 — <span style="color:var(--feed)">FEED + MARKETPLACE</span></div>
+  <div class="section-title">Pin to Feed. Discover. Fork. Evolve.</div>
+  <div class="section-desc">
+    Published apps appear in a feed. Other GentlyOS users can browse, pin, fork.
+    The feed is not a walled garden — it's a distributed discovery layer.
+  </div>
+
+  <div class="cards">
+    <div class="card" style="grid-column:1/-1;max-width:100%">
+      <div class="card-label">THE FEED</div>
+      <div class="card-title" style="color:var(--feed)">What Developers See When They Browse</div>
+      <div class="feed-mock">
+        <div class="feed-item">
+          <div class="fi-icon">🎨</div>
+          <div class="fi-body">
+            <div class="fi-title">Pixel Art Editor <span class="tag tag-app">morphable</span> <span class="tag tag-app">stamped</span></div>
+            <div class="fi-desc">Sprite editor with layer support, export to PNG/GIF, palette management. Self-morphing — users can add features via built-in Proton. Gate-integrated: layers, filters, export mode.</div>
+            <div class="fi-meta">
+              <span style="color:var(--app)">⬇ 342 pins</span>
+              <span>★ 4.8</span>
+              <span>by @artdev</span>
+              <span>v1.2.0 · 3 days ago</span>
+              <span>48 KB</span>
+            </div>
+            <div class="fi-actions">
+              <button class="fi-btn primary">📌 Pin to Toolbar</button>
+              <button class="fi-btn">🔀 Fork</button>
+              <button class="fi-btn">👁 Source</button>
+            </div>
+          </div>
+        </div>
+        <div class="feed-item">
+          <div class="fi-icon">📊</div>
+          <div class="fi-body">
+            <div class="fi-title">Crypto Dashboard <span class="tag tag-feed">network</span> <span class="tag tag-app">stamped</span></div>
+            <div class="fi-desc">Real-time portfolio tracker. WebSocket feeds. Hardlocked preview of P&L charts. Requires network permission (requested on first pin).</div>
+            <div class="fi-meta">
+              <span style="color:var(--app)">⬇ 1.2K pins</span>
+              <span>★ 4.5</span>
+              <span>by @findev</span>
+              <span>v3.0.1 · 1 day ago</span>
+              <span>112 KB</span>
+            </div>
+            <div class="fi-actions">
+              <button class="fi-btn primary">📌 Pin to Toolbar</button>
+              <button class="fi-btn">🔀 Fork</button>
+              <button class="fi-btn">👁 Source</button>
+            </div>
+          </div>
+        </div>
+        <div class="feed-item">
+          <div class="fi-icon">🎵</div>
+          <div class="fi-body">
+            <div class="fi-title">Gently Synth <span class="tag tag-app">morphable</span> <span class="tag tag-dev">gpu</span></div>
+            <div class="fi-desc">Web Audio synthesizer with sequencer. Gates map to oscillator voices. Morphable — add your own effects via Proton. GPU-accelerated visualizer.</div>
+            <div class="fi-meta">
+              <span style="color:var(--app)">⬇ 89 pins</span>
+              <span>★ 4.9</span>
+              <span>by @sounddev</span>
+              <span>v0.8.0 · 5 days ago</span>
+              <span>67 KB</span>
+            </div>
+            <div class="fi-actions">
+              <button class="fi-btn primary">📌 Pin to Toolbar</button>
+              <button class="fi-btn">🔀 Fork</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">PIN FLOW</div>
+      <div class="card-title" style="color:var(--feed)">From Feed to Toolbar</div>
+      <div class="card-body">
+        <strong>1. Browse</strong> — Developer scrolls the feed. Sees apps with ratings, pin counts, permissions.
+        <br><br>
+        <strong>2. Inspect</strong> — Click "Source" to see the app's code. It's just HTML/JS/CSS.
+        Manifest shows permissions. No hidden behavior.
+        <br><br>
+        <strong>3. Pin</strong> — Click "Pin to Toolbar". If the app needs permissions (network, GPU),
+        the OS prompts. Developer approves or denies. App appears in toolbar.
+        <br><br>
+        <strong>4. Launch</strong> — Click the toolbar icon. App runs in a hardlocked frame.
+        It has only the permissions it declared. It can't escape its sandbox.
+        <br><br>
+        <strong>5. Fork</strong> — Don't like something? Fork it. Opens in your Proton.
+        Edit it. Make it yours. Publish your version to the feed. The chain continues.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">WHAT FEED APPS CAN'T DO</div>
+      <div class="card-title" style="color:var(--warn)">The Double Sandbox</div>
+      <div class="diagram">App from feed runs with TWO sandboxes:
+
+<span style="color:var(--core)">SANDBOX 1: OS Level (NixOS enforcement)</span>
+  ✕ Access filesystem outside $APP_DIR
+  ✕ Access network (unless manifest declares + user approves)
+  ✕ Access GPU (unless declared)
+  ✕ Access other apps' data
+  ✕ Modify system config
+  ✕ Escalate privileges
+
+<span style="color:var(--app)">SANDBOX 2: Hardlock (5-layer iframe isolation)</span>
+  ✕ Access parent window (Gently Shell)
+  ✕ Navigate away from app
+  ✕ Open popups
+  ✕ Run infinite loops (watchdog kills)
+  ✕ Crash without recovery (snapshot rollback)
+
+<span style="color:var(--app)">If morphable, the app's built-in Proton adds:</span>
+<span style="color:var(--warn)">SANDBOX 3: Proton hardlock inside app sandbox</span>
+  ✕ App's self-edit can't break the app's runtime
+  ✕ Same 5 layers, nested one level deeper</div>
+      <div class="card-body">
+        Three sandboxes deep for a morphable feed app. NixOS at the bottom,
+        hardlock in the middle, Proton hardlock at the top. An app from the feed
+        would need to break through all three to touch anything outside its box.
+        <strong>That's the sovereignty guarantee.</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ BUSINESS MODEL ═══ -->
+<div class="section">
+  <div class="section-num">THE BUSINESS</div>
+  <div class="section-title">How This Becomes a Product</div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">YOU SELL</div>
+      <div class="card-title">The Core OS</div>
+      <div class="card-body">
+        GentlyOS ships as a bootable image. Developers pay for the OS.
+        They get: the shell, the core apps, Claude integration, Proton workbench,
+        git/terminal/GPU tools, and access to the feed.
+        <br><br>
+        <strong>What they're really buying:</strong> a development environment where
+        AI-assisted app building is the default, not an afterthought.
+        The shell IS the IDE. The OS IS the SDK.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">DEVS SELL</div>
+      <div class="card-title">Their Apps on the Feed</div>
+      <div class="card-body">
+        Developers build apps in Proton. Publish to the feed. Free or paid.
+        You take a percentage of paid app revenue (or not — your call).
+        <br><br>
+        The feed grows organically. More apps → more developers → more apps.
+        <strong>You don't build the apps. You build the platform that makes building apps
+        effortless.</strong> The app ecosystem is the moat.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">USERS GET</div>
+      <div class="card-title">A Sovereign Machine</div>
+      <div class="card-body">
+        End users who aren't developers still benefit. They pin apps from the feed.
+        They use the core tools. They have a machine where <strong>everything is contained,
+        nothing can break, and the OS protects them by design.</strong>
+        <br><br>
+        No malware can escape the sandbox. No app can phone home without permission.
+        No update can break the system (NixOS rollback). This is the sovereign computing
+        promise delivered as a product.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FINAL ═══ -->
+<div class="final">
+  <div class="final-line" style="color:var(--sdk)">Tier 0: You build GentlyOS</div>
+  <div class="final-line" style="color:var(--core)">Tier 1: You ship it with core apps frozen</div>
+  <div class="final-line" style="color:var(--dev)">Tier 2: Developers build apps in the sandbox</div>
+  <div class="final-line" style="color:var(--app)">Tier 3: Apps morph themselves, get pinned</div>
+  <div class="final-line" style="color:var(--feed)">Tier 4: Apps flow through the feed</div>
+  <div class="final-big">SOVEREIGNTY <span class="final-accent">FLOWS DOWN</span>. APPS <span class="final-accent">FLOW UP</span>.</div>
+  <

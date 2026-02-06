@@ -1,0 +1,50 @@
+{
+  "name": "gently",
+  "version": "0.1.0",
+  "description": "GentlyOS - Sovereignty-first AI development environment",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:linux": "electron-builder --linux",
+    "guarddog": "node ../packages/guarddog/cli/guarddog.js",
+    "guarddog:init": "node ../packages/guarddog/cli/guarddog.js init",
+    "guarddog:scan": "node ../packages/guarddog/cli/guarddog.js scan",
+    "guarddog:dashboard": "node ../packages/guarddog/dashboard/server.js"
+  },
+  "author": "GentlyOS",
+  "license": "MIT",
+  "dependencies": {
+    "guarddog": "file:../packages/guarddog"
+  },
+  "devDependencies": {
+    "@emotion/react": "^11.11.0",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/material": "^5.15.0",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "build": {
+    "appId": "com.gentlyos.gently",
+    "productName": "Gently",
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "category": "Development"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "setup.html",
+      "shell.html",
+      "renderer/**/*",
+      "inject/**/*",
+      "styles/**/*",
+      "components/**/*"
+    ]
+  }
+}

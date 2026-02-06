@@ -1,0 +1,35 @@
+# GentlyOS Workspace - Bazel Build Configuration
+# Enables affected-only builds and remote caching
+
+workspace(name = "gentlyos")
+
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# rules_rust for Rust support
+http_archive(
+    name = "rules_rust",
+    sha256 = "PLACEHOLDER_SHA256",  # Update with actual sha256 on first run
+    urls = ["https://github.com/bazelbuild/rules_rust/releases/download/0.40.0/rules_rust-v0.40.0.tar.gz"],
+)
+
+# Note: Run `CARGO_BAZEL_REPIN=1 bazel sync --only=crate_index` to initialize
+# For now, continue using cargo for builds until Bazel is fully configured
+
+# Uncomment once rules_rust is properly downloaded:
+# load("@rules_rust//rust:repositories.bzl", "rules_rust_dependencies", "rust_register_toolchains")
+# rules_rust_dependencies()
+# rust_register_toolchains(
+#     edition = "2021",
+#     versions = ["1.75.0"],
+# )
+
+# Crate universe for dependency management (future)
+# load("@rules_rust//crate_universe:defs.bzl", "crates_repository")
+# crates_repository(
+#     name = "crate_index",
+#     cargo_lockfile = "//:Cargo.lock",
+#     manifests = [
+#         "//:Cargo.toml",
+#         # All crate manifests would be listed here
+#     ],
+# )

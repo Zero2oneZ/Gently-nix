@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gently Setup</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #08080c;
+  --surface: #0e0e16;
+  --elevated: #18182a;
+  --border: #1a1a2e;
+  --text: #e0e0e8;
+  --muted: #9999aa;
+  --dim: #666680;
+  --accent: #00e5a0;
+  --blue: #4d9fff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  font-family: 'Instrument Sans', sans-serif;
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.setup {
+  width: 90%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.setup-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: var(--accent);
+  text-align: center;
+}
+
+.setup-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: -12px;
+}
+
+/* Steps */
+.steps {
+  display: flex;
+  gap: 16px;
+}
+
+.step {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--dim);
+}
+
+.step-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.step-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* SSH Key display */
+.ssh-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--accent);
+  word-break: break-all;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: border-color 200ms;
+}
+.ssh-box:hover { border-color: var(--accent); }
+
+.copy-hint {
+  font-size: 8px;
+  color: var(--dim);
+  text-align: center;
+  margin-top: -6px;
+}
+
+/* Input fields */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input-label {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--dim);
+  font-family: 'DM Mono', monospace;
+}
+
+.input-field {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 200ms;
+}
+.input-field:focus { border-color: var(--accent); }
+
+/* Auth indicators */
+.auth-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--dim);
+}
+
+.auth-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--dim);
+}
+.auth-dot.ok { background: var(--accent); }
+.auth-dot.pending { background: #ffd93d; }
+
+/* Complete button */
+.complete-btn {
+  background: transparent;
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  padding: 12px 32px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 200ms;
+  align-self: center;
+}
+.complete-btn:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.complete-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+</style>
+</head>
+<body>
+
+<div class="setup">
+  <div class="setup-title">GENTLY SETUP</div>
+  <div class="setup-subtitle">Connect your tools. This only happens once.</div>
+
+  <div class="steps">
+    <!-- Step 1: SSH Key -->
+    <div class="step">
+      <div class="step-num">STEP 1</div>
+      <div class="step-title">SSH Key</div>
+      <div class="step-desc">Copy this key and add it to GitHub → Settings → SSH Keys</div>
+      <div class="ssh-box" id="ssh-key" onclick="copySSH()">Loading...</div>
+      <div class="copy-hint">click to copy</div>
+    </div>
+
+    <!-- Step 2: Git identity -->
+    <div class="step">
+      <div class="step-num">STEP 2</div>
+      <div class="step-title">Git Identity</div>
+      <div class="step-desc">For git commits in your projects</div>
+      <div class="input-group">
+        <span class="input-label">NAME</span>
+        <input class="input-field" id="git-name" placeholder="Tom Lee" />
+      </div>
+      <div class="input-group">
+        <span class="input-label">EMAIL</span>
+        <input class="input-field" id="git-email" placeholder="tom@gently.os" />
+      </div>
+    </div>
+
+    <!-- Step 3: Auth status -->
+    <div class="step">
+      <div class="step-num">STEP 3</div>
+      <div class="step-title">Verify</div>
+      <div class="step-desc">After signing into GitHub and Claude in the embedded views above, these will turn green.</div>
+      <div class="auth-status">
+        <div class="auth-dot" id="dot-github"></div>
+        <span>GitHub SSH</span>
+      </div>
+      <div class="auth-status">
+        <div class="auth-dot" id="dot-claude"></div>
+        <span>Claude Desktop</span>
+      </div>
+      <div class="auth-status">
+        <div class="auth-dot" id="dot-cli"></div>
+        <span>Claude CLI</span>
+      </div>
+    </div>
+  </div>
+
+  <button class="complete-btn" id="complete-btn" onclick="completeSetup()">
+    COMPLETE SETUP →
+  </button>
+</div>
+
+<script>
+async function init() {
+  const pubKey = await window.gently.getSSHPubKey();
+  document.getElementById('ssh-key').textContent = pubKey;
+}
+
+function copySSH() {
+  const text = document.getElementById('ssh-key').textContent;
+  navigator.clipboard.writeText(text);
+  document.getElementById('ssh-key').style.borderColor = 'var(--accent)';
+  setTimeout(() => {
+    document.getElementById('ssh-key').style.borderColor = '';
+  }, 1000);
+}
+
+async function completeSetup() {
+  const gitName = document.getElementById('git-name').value.trim();
+  const gitEmail = document.getElementById('git-email').value.trim();
+
+  if (!gitName || !gitEmail) {
+    alert('Please enter your git name and email.');
+    return;
+  }
+
+  await window.gently.completeSetup({ gitName, gitEmail });
+
+  // Reload as shell mode
+  window.location.href = 'shell.html';
+}
+
+init();
+</script>
+</body>
+</html>

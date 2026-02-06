@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gently</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-void: #08080c;
+  --bg-shelf: #0c0c12;
+  --bg-panel: #0e0e16;
+  --bg-surface: #12121c;
+  --bg-elevated: #18182a;
+  --border: #1a1a2e;
+  --text: #e0e0e8;
+  --muted: #9999aa;
+  --dim: #666680;
+  --vdim: #333348;
+  --accent: #00e5a0;
+  --process: #4d9fff;
+  --shelf-w: 240px;
+  --bottom-h: 190px;
+  --stamp-h: 32px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-void);
+  font-family: 'DM Mono', monospace;
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Master grid — shelves are HTML, center is EMPTY (BrowserViews sit on top) */
+.shell {
+  display: grid;
+  grid-template-columns: var(--shelf-w) 1fr var(--shelf-w);
+  grid-template-rows: auto 1fr var(--stamp-h) var(--bottom-h);
+  height: 100vh;
+}
+
+/* ═══ CONSTANTS BAR ═══ */
+.constants-bar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  min-height: 28px;
+  overflow-x: auto;
+}
+
+.const-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 8px;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.const-chip .cc-tag { color: var(--vdim); }
+.const-chip .cc-name { color: var(--text); font-weight: 500; }
+.const-chip .cc-sum { color: var(--dim); font-style: italic; }
+
+.no-constants {
+  font-size: 8px;
+  color: var(--vdim);
+  letter-spacing: 1px;
+}
+
+/* ═══ LEFT SHELF ═══ */
+.shelf-left {
+  grid-column: 1;
+  grid-row: 2 / -1;
+  background: var(--bg-shelf);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.shelf-header {
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.shelf-title {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: var(--vdim);
+}
+
+.shelf-body { flex: 1; overflow-y: auto; padding: 6px; }
+
+/* Clan items */
+.clan-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--muted);
+  transition: all 120ms;
+  margin: 1px 0;
+}
+.clan-item:hover { background: var(--bg-surface); color: var(--text); }
+.clan-item.active { background: color-mix(in srgb, var(--accent) 10%, var(--bg-void)); color: var(--accent); }
+.clan-item.frozen { opacity: 0.4; }
+
+.clan-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.clan-name { flex: 1; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clan-depth { font-size: 7px; color: var(--dim); }
+
+/* Group headers */
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--dim);
+  margin-top: 6px;
+}
+
+/* ═══ CENTER (transparent — BrowserViews show through) ═══ */
+.center-void {
+  grid-column: 2;
+  grid-row: 2;
+  /* This is empty. BrowserViews are positioned here by main.js */
+  background: transparent;
+}
+
+/* ═══ RIGHT SHELF ═══ */
+.shelf-right {
+  grid-column: 3;
+  grid-row: 2 / -1;
+  background: var(--bg-shelf);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.art-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 9px;
+  color: var(--muted);
+  border-radius: 3px;
+  margin: 1px 0;
+  transition: all 120ms;
+}
+.art-item:hover { background: var(--bg-surface); color: var(--text); }
+.art-item.auto { border-left: 2px solid var(--accent); }
+
+.art-icon { font-size: 10px; flex-shrink: 0; }
+.art-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-meta { font-size: 7px; color: var(--vdim); }
+
+/* ═══ STAMP BAR ═══ */
+.stamp-bar {
+  grid-column: 2;
+  grid-row: 3;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 6px;
+}
+
+.stamp-live {
+  flex: 1;
+  font-size: 8px;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stamp-btn {
+  padding: 2px 6px;
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--dim);
+  transition: all 150ms;
+}
+.stamp-btn:hover { border-color: var(--accent); color: var(--muted); }
+
+/* ═══ BOTTOM ZONE ═══ */
+.bottom-zone {
+  grid-column: 2;
+  grid-row: 4;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.zone-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.zone-btn {
+  padding: 3px 8px;
+  font-size: 7px;
+  letter-spacing: 1px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--dim);
+  transition: all 150ms;
+}
+.zone-btn.active { border-color: var(--accent); color: var(--accent); }
+.zone-btn:hover { color: var(--muted); }
+
+.target-btns { margin-left: auto; display: flex; gap: 3px; }
+
+.kb-area {
+  flex: 1;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.key-row {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+}
+
+.key {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  transition: all 100ms;
+  position: relative;
+}
+.key:hover { background: var(--bg-elevated); transform: translateY(-1px); }
+.key:active { transform: translateY(1px); }
+.key::after {
+  content: '';
+  position: absolute;
+  bottom: 2px; left: 3px; right: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  opacity: 0.4;
+}
+
+.key.action { font-size: 8px; letter-spacing: 0.5px; min-width: 50px; }
+.key.space { flex: 1; max-width: 250px; }
+.key.gate { font-size: 9px; min-width: 36px; }
+
+::-webkit-scrollbar { width: 2px; }
+::-webkit-scrollbar-thumb { background: #1a1a2e; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- CONSTANTS BAR -->
+  <div class="constants-bar" id="constants-bar">
+    <span class="no-constants">ROOT WINDOW — NO CONSTANTS</span>
+  </div>
+
+  <!-- LEFT SHELF -->
+  <div class="shelf-left">
+    <div class="shelf-header">
+      <span class="shelf-title">CLANS</span>
+    </div>
+    <div class="shelf-body" id="left-body">
+      <div style="padding:20px 10px;text-align:center;">
+        <div style="font-size:9px;color:var(--dim);letter-spacing:1px;">NO PROJECT LOADED</div>
+        <div style="font-size:8px;color:var(--vdim);margin-top:8px;">gently init &lt;name&gt;</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER — BrowserViews sit here -->
+  <div class="center-void" id="center-void"></div>
+
+  <!-- RIGHT SHELF -->
+  <div class="shelf-right">
+    <div class="shelf-header">
+      <span class="shelf-title">ARTIFACTS</span>
+    </div>
+    <div class="shelf-body" id="right-body"></div>
+  </div>
+
+  <!-- STAMP BAR -->
+  <div class="stamp-bar">
+    <div class="stamp-live" id="stamp-live">[OLO|🌿—|📍0|⚡—|🔒—|#0000|⏱—]</div>
+    <div class="stamp-btn" onclick="copyStamp()">📋 COPY</div>
+    <div class="stamp-btn" id="state-btn">⚡ OPEN</div>
+  </div>
+
+  <!-- BOTTOM ZONE -->
+  <div class="bottom-zone">
+    <div class="zone-header">
+      <div class="zone-btn active" id="kb-mode">⌨ KEYBOARD</div>
+      <div class="zone-btn" id="art-mode">📦 ARTIFACTS</div>
+      <div class="target-btns">
+        <div class="zone-btn active" style="border-color:var(--accent);color:var(--accent)">A FOCUS</div>
+        <div class="zone-btn" style="color:var(--process)">B PROCESS</div>
+      </div>
+    </div>
+    <div class="kb-area" id="kb-area">
+      <!-- Gate row -->
+      <div class="key-row">
+        <div class="key gate" id="gate-A">A○</div>
+        <div class="key gate" id="gate-B">B○</div>
+        <div class="key gate" id="gate-C">C○</div>
+        <div class="key gate" id="gate-D">D○</div>
+        <div class="key gate" id="gate-E">E○</div>
+        <div style="width:8px"></div>
+        <div class="key action">⚡OPEN</div>
+        <div class="key action">⚡GATE</div>
+        <div class="key action">⚡DONE</div>
+        <div class="key action">⚡FORK</div>
+      </div>
+      <!-- QWERTY -->
+      <div class="key-row">
+        <div class="key">q</div><div class="key">w</div><div class="key">e</div>
+        <div class="key">r</div><div class="key">t</div><div class="key">y</div>
+        <div class="key">u</div><div class="key">i</div><div class="key">o</div>
+        <div class="key">p</div>
+      </div>
+      <div class="key-row">
+        <div class="key">a</div><div class="key">s</div><div class="key">d</div>
+        <div class="key">f</div><div class="key">g</div><div class="key">h</div>
+        <div class="key">j</div><div class="key">k</div><div class="key">l</div>
+      </div>
+      <div class="key-row">
+        <div class="key">z</div><div class="key">x</div><div class="key">c</div>
+        <div class="key">v</div><div class="key">b</div><div class="key">n</div>
+        <div class="key">m</div>
+      </div>
+      <!-- Action row -->
+      <div class="key-row">
+        <div class="key action">◆ SAVE</div>
+        <div class="key action">🌿 FORK</div>
+        <div class="key action" style="border-color:var(--accent)">A</div>
+        <div class="key space"></div>
+        <div class="key action" style="border-color:var(--process)">B</div>
+        <div class="key action">📌 PIN</div>
+        <div class="key action">👁 LOOK</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Receive data from main process
+window.gently.onConstantsLoaded((constants) => {
+  const bar = document.getElementById('constants-bar');
+  if (constants.length === 0) {
+    bar.innerHTML = '<span class="no-constants">ROOT WINDOW — NO CONSTANTS</span>';
+  } else {
+    bar.innerHTML = constants.map(c =>
+      `<span class="const-chip">
+        <span class="cc-tag">${c.gitTag || '▒'}</span>
+        <span class="cc-name">${c.sourceName}</span>
+        <span class="cc-sum">"${c.summary}"</span>
+      </span>`
+    ).join('');
+  }
+});
+
+window.gently.onWindowData((data) => {
+  document.title = `Gently — ${data.name}`;
+});
+
+function copyStamp() {
+  const text = document.getElementById('stamp-live').textContent;
+  navigator.clipboard.writeText(text);
+}
+</script>
+</body>
+</html>

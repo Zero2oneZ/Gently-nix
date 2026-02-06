@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gently Shell — Edit Me</title>
+<style>
+/*
+  ╔══════════════════════════════════════════════════════╗
+  ║  GENTLY SHELL — DESIGN PLAYGROUND                   ║
+  ║                                                      ║
+  ║  Edit this file to change ANYTHING about the GUI.   ║
+  ║  Save → refresh browser → see changes instantly.    ║
+  ║                                                      ║
+  ║  WHAT CONTROLS WHAT:                                 ║
+  ║  • CSS variables below → colors, sizes, spacing     ║
+  ║  • Grid template → layout proportions               ║
+  ║  • .shelf-left → left panel (clans/projects)        ║
+  ║  • .shelf-right → right panel (artifacts/bucket)    ║
+  ║  • .constants-bar → top constants display            ║
+  ║  • .stamp-bar → live stamp readout                   ║
+  ║  • .bottom-zone → keyboard + controls                ║
+  ║  • .pane-mock → placeholder for Claude chat panes    ║
+  ║  • JS at bottom → all interactive behavior           ║
+  ╚══════════════════════════════════════════════════════╝
+*/
+
+/* ═══ DESIGN TOKENS — EDIT THESE FIRST ═══ */
+:root {
+  /* Backgrounds (darkest → lightest) */
+  --bg-void:      #08080c;
+  --bg-shelf:     #0c0c12;
+  --bg-panel:     #0e0e16;
+  --bg-surface:   #12121c;
+  --bg-elevated:  #18182a;
+  --bg-hover:     #1e1e38;
+
+  /* Borders */
+  --border:       #1a1a2e;
+  --border-focus: #2a2a4e;
+
+  /* Text */
+  --text:         #e0e0e8;
+  --muted:        #9999aa;
+  --dim:          #666680;
+  --vdim:         #333348;
+
+  /* Accents */
+  --accent:       #00e5a0;   /* Focus pane, active states */
+  --process:      #4d9fff;   /* Process pane */
+  --warn:         #ffd93d;   /* Half-open gates */
+  --dead:         #ff4444;   /* Dead/no gates */
+  --frozen:       #88ccff;   /* Frozen clans */
+
+  /* Layout sizes — ADJUST THESE TO CHANGE PROPORTIONS */
+  --shelf-w:      220px;     /* Left/right shelf width */
+  --bottom-h:     200px;     /* Keyboard zone height */
+  --stamp-h:      30px;      /* Stamp bar height */
+  --const-h:      28px;      /* Constants bar height */
+  --tab-h:        32px;      /* Pane tab bar height */
+
+  /* Typography */
+  --font-mono:    'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
+  --font-ui:      'Inter', -apple-system, 'Segoe UI', sans-serif;
+
+  /* Spacing */
+  --gap-xs:       3px;
+  --gap-sm:       6px;
+  --gap-md:       10px;
+  --gap-lg:       16px;
+
+  /* Radii */
+  --radius-sm:    3px;
+  --radius-md:    6px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-void);
+  font-family: var(--font-mono);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ═══ MASTER GRID ═══ */
+.shell {
+  display: grid;
+  grid-template-columns: var(--shelf-w) 1fr 1fr var(--shelf-w);
+  grid-template-rows: var(--const-h) var(--tab-h) 1fr var(--stamp-h) var(--bottom-h);
+  grid-template-areas:
+    "const  const    const    const"
+    "lshelf tabA     tabB     rshelf"
+    "lshelf paneA    paneB    rshelf"
+    "lshelf stamp    stamp    rshelf"
+    "lshelf bottom   bottom   rshelf";
+  height: 100vh;
+  gap: 0;
+}
+
+/* ═══ CONSTANTS BAR ═══ */
+.constants-bar {
+  grid-area: const;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--gap-md);
+  gap: var(--gap-sm);
+  overflow-x: auto;
+}
+
+.const-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cc-tag { color: var(--accent); opacity: 0.5; }
+.cc-name { color: var(--text); font-weight: 500; }
+.cc-sum { color: var(--dim); }
+.cc-gates { color: var(--muted); font-size: 7px; }
+
+/* ═══ LEFT SHELF ═══ */
+.shelf-left {
+  grid-area: lshelf;
+  background: var(--bg-shelf);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.shelf-header {
+  padding: var(--gap-sm) var(--gap-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  min-height: 30px;
+}
+
+.shelf-title {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: var(--vdim);
+}
+
+.shelf-action {
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--dim);
+  transition: color 150ms;
+  line-height: 1;
+}
+.shelf-action:hover { color: var(--accent); }
+
+.shelf-body { flex: 1; overflow-y: auto; padding: var(--gap-xs); }
+
+/* Clan items */
+.clan-item {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--muted);
+  transition: all 120ms;
+  margin: 1px 0;
+}
+.clan-item:hover { background: var(--bg-surface); color: var(--text); }
+.clan-item.active {
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-void));
+  color: var(--accent);
+}
+.clan-item.frozen { opacity: 0.35; }
+
+.clan-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.clan-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clan-depth { font-size: 7px; color: var(--dim); }
+.clan-hash { font-size: 7px; color: var(--vdim); }
+
+/* Section dividers */
+.shelf-divider {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px 3px;
+  font-size: 7px;
+  letter-spacing: 1.5px;
+  color: var(--vdim);
+}
+.shelf-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ═══ TAB BARS (above each pane) ═══ */
+.tab-bar {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--gap-sm);
+  gap: var(--gap-xs);
+}
+.tab-bar-a { grid-area: tabA; border-right: 1px solid var(--border); }
+.tab-bar-b { grid-area: tabB; }
+
+.pane-tab {
+  padding: 4px 10px;
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  cursor: pointer;
+  color: var(--dim);
+  transition: all 120ms;
+  border: 1px solid transparent;
+  border-bottom: none;
+}
+.pane-tab:hover { color: var(--muted); }
+.pane-tab.active { color: var(--text); background: var(--bg-surface); border-color: var(--border); }
+
+.pane-indicator {
+  margin-left: auto;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid;
+}
+.pane-indicator.focus { border-color: var(--accent); }
+.pane-indicator.process { border-color: var(--process); }
+.pane-indicator.focus.on { background: var(--accent); }
+.pane-indicator.process.on { background: var(--process); }
+
+/* ═══ PANE MOCKS (replace with BrowserView in Electron) ═══ */
+.pane-mock {
+  background: var(--bg-void);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-md);
+  position: relative;
+  overflow: hidden;
+}
+.pane-a {
+  grid-area: paneA;
+  border-right: 1px solid var(--border);
+}
+.pane-b { grid-area: paneB; }
+
+.pane-label {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--vdim);
+}
+
+.pane-url {
+  font-size: 8px;
+  color: var(--dim);
+  padding: 4px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.pane-chat-mock {
+  width: 80%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.mock-msg {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 10px;
+  line-height: 1.5;
+  max-width: 85%;
+}
+.mock-msg.user {
+  background: var(--bg-elevated);
+  color: var(--muted);
+  align-self: flex-end;
+  border: 1px solid var(--border);
+}
+.mock-msg.claude {
+  background: var(--bg-surface);
+  color: var(--text);
+  align-self: flex-start;
+}
+.mock-stamp {
+  font-size: 7px;
+  color: var(--accent);
+  opacity: 0.5;
+  margin-bottom: 2px;
+}
+
+.mock-input {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-top: var(--gap-sm);
+}
+.mock-input-text {
+  flex: 1;
+  font-size: 10px;
+  color: var(--dim);
+}
+.mock-input-send {
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+/* ═══ RIGHT SHELF ═══ */
+.shelf-right {
+  grid-area: rshelf;
+  background: var(--bg-shelf);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.art-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  font-size: 9px;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  margin: 1px 0;
+  transition: all 120ms;
+}
+.art-item:hover { background: var(--bg-surface); color: var(--text); }
+.art-auto { border-left: 2px solid var(--accent); }
+.art-staged { border-left: 2px solid var(--warn); }
+.art-injected { opacity: 0.3; }
+
+.art-icon { flex-shrink: 0; font-size: 10px; }
+.art-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-meta { font-size: 7px; color: var(--vdim); }
+
+/* ═══ STAMP BAR ═══ */
+.stamp-bar {
+  grid-area: stamp;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--gap-md);
+  gap: var(--gap-sm);
+}
+
+.stamp-live {
+  flex: 1;
+  font-size: 8px;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.stamp-btn {
+  padding: 2px 8px;
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--dim);
+  background: transparent;
+  transition: all 150ms;
+}
+.stamp-btn:hover { border-color: var(--accent); color: var(--muted); }
+
+/* ═══ BOTTOM ZONE ═══ */
+.bottom-zone {
+  grid-area: bottom;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.zone-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  padding: 4px var(--gap-sm);
+  border-bottom: 1px solid var(--border);
+  min-height: 26px;
+}
+
+.zone-btn {
+  padding: 3px 8px;
+  font-size: 7px;
+  letter-spacing: 1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--dim);
+  background: transparent;
+  transition: all 150ms;
+}
+.zone-btn:hover { color: var(--muted); }
+.zone-btn.active { border-color: var(--accent); color: var(--accent); }
+
+.target-btns { margin-left: auto; display: flex; gap: var(--gap-xs); }
+
+.target-btn {
+  padding: 3px 10px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  border: 1.5px solid;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: transparent;
+  transition: all 150ms;
+}
+.target-btn.focus {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.target-btn.process {
+  border-color: var(--process);
+  color: var(--process);
+  opacity: 0.4;
+}
+.target-btn.focus.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.target-btn.process.active { background: color-mix(in srgb, var(--process) 12%, transparent); opacity: 1; }
+
+/* Keyboard area */
+.kb-area {
+  flex: 1;
+  padding: var(--gap-sm) var(--gap-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  justify-content: center;
+}
+
+.key-row {
+  display: flex;
+  gap: var(--gap-xs);
+  justify-content: center;
+}
+
+.key {
+  height: 30px;
+  min-width: 30px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text);
+  transition: all 80ms;
+  position: relative;
+}
+.key:hover { background: var(--bg-elevated); transform: translateY(-1px); }
+.key:active { transform: translateY(1px); background: var(--bg-hover); }
+
+/* Color bar under keys showing target pane */
+.key::after {
+  content: '';
+  position: absolute;
+  bottom: 2px; left: 4px; right: 4px;
+  height: 2px;
+  border-radius: 1px;
+  transition: background 150ms;
+}
+.target-focus .key::after { background: var(--accent); opacity: 0.3; }
+.target-process .key::after { background: var(--process); opacity: 0.3; }
+
+/* Special keys */
+.key.gate {
+  font-size: 9px;
+  min-width: 42px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.key.gate.open  { color: var(--dim); }
+.key.gate.half  { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, var(--border)); }
+.key.gate.yes   { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.key.gate.no    { color: var(--dead); border-color: color-mix(in srgb, var(--dead) 30%, var(--border)); }
+
+.key.action {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  min-width: 52px;
+  color: var(--muted);
+}
+.key.action.primary { border-color: var(--accent); color: var(--accent); }
+.key.action.collapse-btn { border-color: var(--warn); color: var(--warn); }
+.key.action.code-btn { border-color: #c77dff; color: #c77dff; }
+
+.key.space { flex: 1; max-width: 280px; }
+
+/* ═══ SCROLLBAR ═══ */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes pulse-accent {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+.pulse { animation: pulse-accent 2s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<div class="shell" id="shell">
+
+  <!-- ═══ CONSTANTS BAR ═══ -->
+  <div class="constants-bar" id="constants-bar">
+    <span class="const-chip">
+      <span class="cc-tag">const/blue-channel</span>
+      <span class="cc-name">Blue Channel</span>
+      <span class="cc-sum">"blue verified as carrier"</span>
+      <span class="cc-gates">A● B●</span>
+    </span>
+    <span class="const-chip">
+      <span class="cc-tag">const/jpeg-internals</span>
+      <span class="cc-name">JPEG Internals</span>
+      <span class="cc-sum">"4:2:0 destroys 75% chroma"</span>
+      <span class="cc-gates">C● D●</span>
+    </span>
+  </div>
+
+  <!-- ═══ LEFT SHELF ═══ -->
+  <div class="shelf-left">
+    <div class="shelf-header">
+      <span class="shelf-title">CLANS</span>
+      <span class="shelf-action" onclick="addClan()" title="Add Clan">+</span>
+    </div>
+    <div class="shelf-body" id="clan-list">
+      <div class="shelf-divider">ACTIVE</div>
+
+      <div class="clan-item active" onclick="selectClan(this, 0)">
+        <div class="clan-dot" style="background:var(--accent)"></div>
+        <span class="clan-name">Encoding Strategy</span>
+        <span class="clan-depth">d=4</span>
+        <span class="clan-hash">#a3f2</span>
+      </div>
+
+      <div class="clan-item" onclick="selectClan(this, 1)">
+        <div class="clan-dot" style="background:#c77dff"></div>
+        <span class="clan-name">Channel Capacity</span>
+        <span class="clan-depth">d=3</span>
+        <span class="clan-hash">#7b1e</span>
+      </div>
+
+      <div class="clan-item" onclick="selectClan(this, 2)">
+        <div class="clan-dot" style="background:var(--warn)"></div>
+        <span class="clan-name">Error Correction</span>
+        <span class="clan-depth">d=1</span>
+        <span class="clan-hash">#d4c8</span>
+      </div>
+
+      <div class="shelf-divider">FROZEN</div>
+
+      <div class="clan-item frozen">
+        <div class="clan-dot" style="background:var(--frozen)"></div>
+        <span class="clan-name">Blue Channel Math</span>
+        <span class="clan-depth">d=8</span>
+        <span class="clan-hash">❄</span>
+      </div>
+
+      <div class="clan-item frozen">
+        <div class="clan-dot" style="background:var(--frozen)"></div>
+        <span class="clan-name">JPEG Internals</span>
+        <span class="clan-depth">d=6</span>
+        <span class="clan-hash">❄</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB BARS ═══ -->
+  <div class="tab-bar tab-bar-a">
+    <div class="pane-tab active">Encoding Strategy</div>
+    <div class="pane-tab">+ new</div>
+    <div class="pane-indicator focus on"></div>
+  </div>
+
+  <div class="tab-bar tab-bar-b">
+    <div class="pane-tab active">Channel Capacity</div>
+    <div class="pane-tab">+ new</div>
+    <div class="pane-indicator process"></div>
+  </div>
+
+  <!-- ═══ FOCUS PANE (mock) ═══ -->
+  <div class="pane-mock pane-a">
+    <div class="pane-chat-mock">
+      <div class="mock-msg user">
+        <div class="mock-stamp">[OLO|🌿clan/encoding|📍4|🔒F●G○|#a3f2|⏱0201T2130]</div>
+        How does frequency domain encoding survive JPEG recompression?
+      </div>
+      <div class="mock-msg claude">
+        The key insight is that mid-frequency DCT coefficients are least affected by quantization. By embedding data in coefficients 4-12 of each 8×8 block, we avoid both the DC component (high energy, easily noticed) and high-frequency components (first to be zeroed by quantization).
+      </div>
+      <div class="mock-msg user">
+        <div class="mock-stamp">[OLO|🌿clan/encoding|📍4|🔒F●G○|#a3f2|⏱0201T2131]</div>
+        What about error correction for the bits that DO get flipped?
+      </div>
+    </div>
+    <div class="mock-input">
+      <span class="mock-input-text">Type a message...</span>
+      <span class="mock-input-send">↑</span>
+    </div>
+  </div>
+
+  <!-- ═══ PROCESS PANE (mock) ═══ -->
+  <div class="pane-mock pane-b">
+    <div class="pane-chat-mock">
+      <div class="mock-msg user">
+        <div class="mock-stamp">[OLO|🌿clan/capacity|📍3|🔒K●L◐|#7b1e|⏱0201T2125]</div>
+        Given the frequency domain approach, what's the realistic bit capacity per 1024×1024 image?
+      </div>
+      <div class="mock-msg claude">
+        For a 1024×1024 image with 4:2:0 chroma subsampling, you get 16,384 luminance blocks of 8×8. Using coefficients 4-12 (9 coefficients per block) with 1 bit per coefficient gives a theoretical maximum of ~147,456 bits. After error correction overhead (~40%) and detection margin, practical capacity is approximately 240 bits (30 bytes) at high reliability.
+      </div>
+    </div>
+    <div class="mock-input">
+      <span class="mock-input-text">Type a message...</span>
+      <span class="mock-input-send">↑</span>
+    </div>
+  </div>
+
+  <!-- ═══ RIGHT SHELF ═══ -->
+  <div class="shelf-right">
+    <div class="shelf-header">
+      <span class="shelf-title">ARTIFACTS</span>
+      <span class="shelf-action" title="Collect">⊕</span>
+    </div>
+    <div class="shelf-body" id="artifact-list">
+      <div class="shelf-divider">AUTO-GENERATED</div>
+
+      <div class="art-item art-auto">
+        <span class="art-icon">⚙</span>
+        <span class="art-name">Blue Channel: "carrier verified"</span>
+        <span class="art-meta">d=8</span>
+      </div>
+
+      <div class="art-item art-auto">
+        <span class="art-icon">⚙</span>
+        <span class="art-name">JPEG: "75% chroma destroyed"</span>
+        <span class="art-meta">d=6</span>
+      </div>
+
+      <div class="shelf-divider">STAGED</div>
+
+      <div class="art-item art-staged">
+        <span class="art-icon">📎</span>
+        <span class="art-name">freq_encoder.rs</span>
+        <span class="art-meta">→A</span>
+      </div>
+
+      <div class="shelf-divider">COLLECTED</div>
+
+      <div class="art-item">
+        <span class="art-icon">📄</span>
+        <span class="art-name">DCT coefficient analysis</span>
+        <span class="art-meta">14 lines</span>
+      </div>
+
+      <div class="art-item">
+        <span class="art-icon">📊</span>
+        <span class="art-name">quality_sweep results</span>
+        <span class="art-meta">json</span>
+      </div>
+
+      <div class="shelf-divider">INJECTED</div>
+
+      <div class="art-item art-injected">
+        <span class="art-icon">✓</span>
+        <span class="art-name">blue_extract.rs</span>
+        <span class="art-meta">clan-0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STAMP BAR ═══ -->
+  <div class="stamp-bar">
+    <span class="stamp-live" id="stamp-display" onclick="copyStamp()">
+      [OLO|🌿clan/encoding-strategy|📍4|⚡OPEN|🔒A●B●C●D●E◐F●G○|📌freq-domain-encoding|#a3f2c1d8|⏱0201T2130]
+    </span>
+    <button class="stamp-btn" onclick="copyStamp()">📋</button>
+    <button class="stamp-btn" id="state-cycle" onclick="cycleState()">⚡OPEN</button>
+    <button class="stamp-btn" onclick="pinPrompt()">📌PIN</button>
+  </div>
+
+  <!-- ═══ BOTTOM ZONE ═══ -->
+  <div class="bottom-zone" id="bottom-zone">
+    <div class="zone-header">
+      <button class="zone-btn active" id="mode-kb" onclick="setMode('kb')">⌨ KEYBOARD</button>
+      <button class="zone-btn" id="mode-art" onclick="setMode('art')">📦 ARTIFACTS</button>
+      <button class="zone-btn" id="mode-cli" onclick="setMode('cli')">⚙ CLI</button>
+      <div class="target-btns">
+        <button class="target-btn focus active" id="target-a" onclick="setTarget('focus')">A FOCUS</button>
+        <button class="target-btn process" id="target-b" onclick="setTarget('process')">B PROCESS</button>
+      </div>
+    </div>
+    <div class="kb-area target-focus" id="kb-area">
+      <!-- Gate row -->
+      <div class="key-row" id="gate-row">
+        <div class="key gate yes" onclick="cycleGate(this)" data-gate="A" data-state="yes">A●</div>
+        <div class="key gate yes" onclick="cycleGate(this)" data-gate="B" data-state="yes">B●</div>
+        <div class="key gate yes" onclick="cycleGate(this)" data-gate="C" data-state="yes">C●</div>
+        <div class="key gate yes" onclick="cycleGate(this)" data-gate="D" data-state="yes">D●</div>
+        <div class="key gate half" onclick="cycleGate(this)" data-gate="E" data-state="half">E◐</div>
+        <div class="key gate yes" onclick="cycleGate(this)" data-gate="F" data-state="yes">F●</div>
+        <div class="key gate open" onclick="cycleGate(this)" data-gate="G" data-state="open">G○</div>
+        <div style="width:12px"></div>
+        <div class="key action primary">⚡OPEN</div>
+        <div class="key action">⚡GATE</div>
+        <div class="key action">⚡DONE</div>
+      </div>
+      <!-- Row 1 -->
+      <div class="key-row">
+        <div class="key">q</div><div class="key">w</div><div class="key">e</div>
+        <div class="key">r</div><div class="key">t</div><div class="key">y</div>
+        <div class="key">u</div><div class="key">i</div><div class="key">o</div>
+        <div class="key">p</div>
+      </div>
+      <!-- Row 2 -->
+      <div class="key-row">
+        <div class="key">a</div><div class="key">s</div><div class="key">d</div>
+        <div class="key">f</div><div class="key">g</div><div class="key">h</div>
+        <div class="key">j</div><div class="key">k</div><div class="key">l</div>
+      </div>
+      <!-- Row 3 -->
+      <div class="key-row">
+        <div class="key">z</div><div class="key">x</div><div class="key">c</div>
+        <div class="key">v</div><div class="key">b</div><div class="key">n</div>
+        <div class="key">m</div>
+      </div>
+      <!-- Action row -->
+      <div class="key-row">
+        <div class="key action">◆ SAVE</div>
+        <div class="key action">🌿 FORK</div>
+        <div class="key action collapse-btn">⭐ COLLAPSE</div>
+        <div class="key action" id="target-key-a" style="border-color:var(--accent);color:var(--accent)">A</div>
+        <div class="key space"></div>
+        <div class="key action" id="target-key-b" style="border-color:var(--process);color:var(--process);opacity:0.4">B</div>
+        <div class="key action code-btn">⚙ CODE</div>
+        <div class="key action">📌 PIN</div>
+        <div class="key action">👁 LOOK</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  ╔══════════════════════════════════════════════════════╗
+  ║  INTERACTIVE BEHAVIOR — EDIT HERE FOR LOGIC         ║
+  ╚══════════════════════════════════════════════════════╝
+*/
+
+// ─── State ───
+let currentTarget = 'focus'; // 'focus' | 'process'
+let currentMode = 'kb';      // 'kb' | 'art' | 'cli'
+let stampState = 'OPEN';     // OPEN | GATE | DONE
+const gateStates = ['open', 'half', 'yes', 'no'];
+const gateSymbols = { open: '○', half: '◐', yes: '●', no: '✕' };
+
+// ─── Target switching ───
+function setTarget(t) {
+  currentTarget = t;
+  const area = document.getElementById('kb-area');
+  area.classList.toggle('target-focus', t === 'focus');
+  area.classList.toggle('target-process', t === 'process');
+
+  document.getElementById('target-a').classList.toggle('active', t === 'focus');
+  document.getElementById('target-b').classList.toggle('active', t === 'process');
+
+  document.getElementById('target-key-a').style.opacity = t === 'focus' ? '1' : '0.4';
+  document.getElementById('target-key-b').style.opacity = t === 'process' ? '1' : '0.4';
+
+  // Update pane indicators
+  document.querySelectorAll('.pane-indicator.focus').forEach(el => el.classList.toggle('on', t === 'focus'));
+  document.querySelectorAll('.pane-indicator.process').forEach(el => el.classList.toggle('on', t === 'process'));
+
+  updateStamp();
+}
+
+// ─── Mode switching ───
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('mode-kb').classList.toggle('active', m === 'kb');
+  document.getElementById('mode-art').classList.toggle('active', m === 'art');
+  document.getElementById('mode-cli').classList.toggle('active', m === 'cli');
+}
+
+// ─── Gate cycling ───
+function cycleGate(el) {
+  const current = el.dataset.state;
+  const idx = gateStates.indexOf(current);
+  const next = gateStates[(idx + 1) % gateStates.length];
+
+  el.dataset.state = next;
+  el.className = `key gate ${next}`;
+  el.textContent = `${el.dataset.gate}${gateSymbols[next]}`;
+
+  updateStamp();
+}
+
+// ─── State cycling ───
+function cycleState() {
+  const states = ['OPEN', 'GATE', 'DONE'];
+  const idx = states.indexOf(stampState);
+  stampState = states[(idx + 1) % states.length];
+  document.getElementById('state-cycle').textContent = `⚡${stampState}`;
+  updateStamp();
+}
+
+// ─── Stamp generation ───
+function updateStamp() {
+  const gates = [];
+  document.querySelectorAll('.key.gate').forEach(g => {
+    gates.push(`${g.dataset.gate}${gateSymbols[g.dataset.state]}`);
+  });
+
+  const ts = new Date().toISOString().slice(5, 16).replace(/-/g, '').replace('T', 'T').replace(':', '');
+  const stamp = `[OLO|🌿clan/encoding-strategy|📍4|⚡${stampState}|🔒${gates.join('')}|📌freq-domain-encoding|#a3f2c1d8|⏱${ts}]`;
+  document.getElementById('stamp-display').textContent = stamp;
+}
+
+function copyStamp() {
+  const text = document.getElementById('stamp-display').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('stamp-display').style.color = '#fff';
+    setTimeout(() => { document.getElementById('stamp-display').style.color = ''; }, 300);
+  });
+}
+
+function pinPrompt() {
+  const pin = prompt('Set pin:');
+  if (pin) updateStamp();
+}
+
+// ─── Clan selection ───
+function selectClan(el, idx) {
+  document.querySelectorAll('.clan-item').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function addClan() {
+  const name = prompt('Clan name:');
+  if (!name) return;
+
+  const activeDiv = document.querySelector('.shelf-divider');
+  const item = document.createElement('div');
+  item.className = 'clan-item';
+  item.onclick = function() { selectClan(this, -1); };
+  item.innerHTML = `
+    <div class="clan-dot" style="background:#${Math.floor(Math.random()*16777215).toString(16)}"></div>
+    <span class="clan-name">${name}</span>
+    <span class="clan-depth">d=0</span>
+    <span class="clan-hash">#${Math.random().toString(16).slice(2,6)}</span>
+  `;
+  activeDiv.after(item);
+}
+
+// ─── Keyboard handler (physical keyboard types too) ───
+document.addEventListener('keydown', (e) => {
+  // Tab switches target
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    setTarget(currentTarget === 'focus' ? 'process' : 'focus');
+    return;
+  }
+
+  // Highlight the pressed key visually
+  const keys = document.querySelectorAll('.key');
+  keys.forEach(k => {
+    if (k.textContent.trim().toLowerCase() === e.key.toLowerCase() && !k.classList.contains('gate') && !k.classList.contains('action')) {
+      k.style.background = currentTarget === 'focus' ? 'var(--accent)' : 'var(--process)';
+      k.style.color = 'var(--bg-void)';
+      setTimeout(() => { k.style.background = ''; k.style.color = ''; }, 150);
+    }
+  });
+});
+
+// Init
+updateStamp();
+</script>
+</body>
+</html>

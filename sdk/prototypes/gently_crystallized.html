@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GentlyOS — Crystallized</title>
+<style>
+:root {
+  --bg:       #08080c;
+  --shelf:    #0a0a10;
+  --panel:    #0e0e16;
+  --surface:  #12121c;
+  --elevated: #18182a;
+  --hover:    #1e1e38;
+  --border:   #1a1a2e;
+  --text:     #e0e0e8;
+  --muted:    #9999aa;
+  --dim:      #666680;
+  --vdim:     #333348;
+  --focus:    #00e5a0;
+  --process:  #4d9fff;
+  --proton:   #ff6b9d;
+  --warn:     #ffd93d;
+  --code:     #c77dff;
+  --dead:     #ff4444;
+  --feed:     #4d9fff;
+  --doc:      #4ecdc4;
+  --build:    #ff6b9d;
+  --shelf-w:  44px;
+  --font:     'SF Mono','JetBrains Mono','Fira Code',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;overflow:hidden;user-select:none}
+.i{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex-shrink:0}
+.i svg{width:11px;height:11px;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;stroke:currentColor}
+.i.lg svg{width:15px;height:15px}
+.i.xl svg{width:20px;height:20px}
+.glow{filter:drop-shadow(0 0 3px currentColor) drop-shadow(0 0 6px color-mix(in srgb,currentColor 30%,transparent))}
+
+/* ═══ MASTER LAYOUT ═══ */
+.shell{display:grid;grid-template-columns:var(--shelf-w) 1fr var(--shelf-w);grid-template-rows:22px 1fr 24px 44px;height:100vh}
+
+/* ═══ TOP BAR ═══ */
+.topbar{grid-column:1/-1;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 6px;gap:4px;font-size:7px}
+.genesis{display:flex;align-items:center;gap:3px;padding:1px 5px;border-radius:3px;font-size:6px;letter-spacing:.5px;color:var(--focus);border:1px solid color-mix(in srgb,var(--focus) 15%,var(--border));background:color-mix(in srgb,var(--focus) 3%,transparent)}
+.scope-pills{display:flex;gap:2px;margin-left:8px}
+.scope-pill{padding:2px 8px;border-radius:10px;font-size:7px;letter-spacing:.5px;cursor:pointer;border:1px solid var(--border);color:var(--dim);background:transparent;transition:all 150ms}
+.scope-pill:hover{border-color:var(--muted);color:var(--muted)}
+.scope-pill.on{border-color:var(--scope-color,var(--focus));color:var(--scope-color,var(--focus));background:color-mix(in srgb,var(--scope-color,var(--focus)) 6%,transparent);box-shadow:0 0 8px color-mix(in srgb,var(--scope-color,var(--focus)) 15%,transparent)}
+.topbar-spacer{flex:1}
+.face-badge{padding:2px 6px;border-radius:3px;font-size:7px;letter-spacing:1px;display:flex;align-items:center;gap:3px;transition:all 200ms}
+
+/* ═══ LEFT SHELF ═══ */
+.shelf-l{grid-row:2/4;background:var(--shelf);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px}
+.rb{width:36px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:4px;color:var(--dim);transition:all 100ms;position:relative}
+.rb:hover{color:var(--text);background:var(--surface)}
+.rb.on{color:var(--focus)}
+.rb.on::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;background:currentColor;border-radius:1px;filter:drop-shadow(0 0 3px currentColor)}
+.rb .dot{position:absolute;top:4px;right:5px;width:4px;height:4px;border-radius:50%;filter:drop-shadow(0 0 2px currentColor)}
+.shelf-div{width:24px;height:1px;background:var(--border);margin:3px 0}
+
+/* ═══ RIGHT SHELF ═══ */
+.shelf-r{grid-row:2/4;background:var(--shelf);border-left:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px}
+.shelf-r .rb.on::before{left:auto;right:0}
+
+/* ═══ MAIN AREA ═══ */
+.main{display:flex;overflow:hidden;position:relative}
+
+/* Pane A — always chat */
+.paneA{display:flex;flex-direction:column;flex:1;min-width:0;overflow:hidden;border-right:1px solid var(--border);transition:flex 200ms}
+.paneA-head{display:flex;align-items:center;gap:4px;padding:0 8px;height:22px;font-size:7px;border-bottom:1px solid var(--border);flex-shrink:0}
+.paneA-head .ph-dot{width:5px;height:5px;border-radius:50%;background:var(--focus)}
+.paneA-head .ph-label{font-weight:600;color:var(--focus);letter-spacing:1px}
+.paneA-head .ph-ctx{flex:1;text-align:center;color:var(--dim)}
+.chat-body{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+
+/* Messages */
+.msg{max-width:88%;padding:7px 10px;border-radius:6px;font-size:9px;line-height:1.6;animation:fadeIn 200ms}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.msg.u{background:var(--elevated);border:1px solid var(--border);color:var(--muted);align-self:flex-end}
+.msg.a{background:var(--surface);color:var(--text);align-self:flex-start}
+.msg-tag{font-size:5px;letter-spacing:1px;margin-bottom:2px;opacity:.5}
+
+/* Inline tiny apps in chat */
+.tiny{margin:6px 0;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px}
+.tiny-label{font-size:5px;letter-spacing:1.5px;color:var(--dim);margin-bottom:4px;display:flex;align-items:center;gap:4px}
+.tiny-preview{padding:6px;border-radius:3px;background:var(--surface);margin:4px 0;font-size:8px}
+.tiny-actions{display:flex;gap:3px;margin-top:6px}
+.tiny-btn{padding:2px 6px;font-size:6px;border:1px solid var(--border);border-radius:2px;cursor:pointer;color:var(--dim);background:transparent;display:flex;align-items:center;gap:2px;transition:all 100ms}
+.tiny-btn:hover{border-color:var(--focus);color:var(--focus)}
+.tiny-btn.pri{border-color:var(--focus);color:var(--focus)}
+
+/* Chat input */
+.chat-input{display:flex;gap:4px;padding:6px 8px;border-top:1px solid var(--border);flex-shrink:0}
+.ci-field{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font:inherit;font-size:9px;outline:none}
+.ci-field:focus{border-color:var(--focus)}
+.ci-send{padding:4px 10px;font-size:7px;border:1px solid var(--focus);border-radius:4px;background:transparent;color:var(--focus);cursor:pointer}
+.ci-send:hover{background:color-mix(in srgb,var(--focus) 10%,transparent)}
+
+/* ═══ PANE B — SCOPE-DEPENDENT ═══ */
+.paneB{display:flex;flex-direction:column;flex:0;min-width:0;overflow:hidden;transition:flex 300ms ease;opacity:0}
+.paneB.open{flex:.85;opacity:1}
+.paneB-head{display:flex;align-items:center;gap:4px;padding:0 8px;height:22px;font-size:7px;border-bottom:1px solid var(--border);flex-shrink:0;transition:background 200ms}
+.paneB-body{flex:1;overflow-y:auto;transition:all 200ms}
+
+/* Pane B scope views */
+.scope-view{display:none;flex-direction:column;height:100%;overflow:hidden}
+.scope-view.active{display:flex}
+
+/* ── FEED VIEW ── */
+.feed-list{flex:1;overflow-y:auto;padding:4px}
+.feed-post{padding:10px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 100ms}
+.feed-post:hover{background:var(--surface)}
+.feed-post.selected{background:color-mix(in srgb,var(--feed) 5%,var(--surface));border-left:2px solid var(--feed)}
+.fp-head{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.fp-icon{width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:var(--bg);border:1px solid var(--border);border-radius:4px}
+.fp-title{font-size:9px;flex:1}
+.fp-meta{font-size:6px;color:var(--dim)}
+.fp-desc{font-size:8px;color:var(--dim);line-height:1.5;margin:2px 0}
+.fp-tags{display:flex;gap:3px;margin-top:4px}
+.fp-tag{font-size:5px;letter-spacing:.5px;padding:1px 4px;border-radius:2px;border:1px solid var(--border);color:var(--dim)}
+.fp-tag.m{border-color:color-mix(in srgb,var(--focus) 25%,var(--border));color:var(--focus)}
+.fp-actions{display:flex;gap:3px;margin-top:6px}
+.fp-btn{padding:2px 6px;font-size:6px;border:1px solid var(--border);border-radius:2px;cursor:pointer;color:var(--dim);background:transparent;display:flex;align-items:center;gap:2px;transition:all 100ms}
+.fp-btn:hover{border-color:var(--feed);color:var(--feed)}
+.fp-btn.pri{border-color:var(--feed);color:var(--feed)}
+
+/* Chain indicator */
+.chain-bar{padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--border);font-size:6px;display:flex;align-items:center;gap:4px;flex-shrink:0}
+.chain-node{display:flex;align-items:center;gap:2px;color:var(--dim)}
+.chain-node.current{color:var(--feed)}
+.chain-arrow{color:var(--vdim)}
+
+/* ── BUILD VIEW ── */
+.build-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.build-tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--border);font-size:7px;flex-shrink:0;overflow-x:auto}
+.build-tab{padding:4px 10px;cursor:pointer;color:var(--dim);border-right:1px solid var(--border);white-space:nowrap;display:flex;align-items:center;gap:3px;transition:all 100ms}
+.build-tab:hover{color:var(--muted)}
+.build-tab.on{color:var(--text);background:var(--surface)}
+.build-editor{flex:1;padding:8px;font-size:8px;color:var(--dim);line-height:1.6;overflow-y:auto;white-space:pre;font-family:var(--font)}
+.build-status{padding:4px 8px;border-top:1px solid var(--border);font-size:6px;display:flex;align-items:center;gap:6px;flex-shrink:0;color:var(--dim)}
+
+/* ── DOC VIEW ── */
+.doc-area{flex:1;padding:12px;overflow-y:auto;font-size:9px;line-height:1.7;color:var(--muted)}
+.doc-area h2{font-size:12px;color:var(--text);margin:12px 0 6px;font-weight:400}
+.doc-area strong{color:var(--text)}
+
+/* ═══ STAMP BAR ═══ */
+.stamp{grid-column:2;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 8px;gap:4px;font-size:7px;overflow:hidden}
+.stamp-text{flex:1;color:var(--focus);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stamp-btn{padding:1px 5px;font-size:6px;border:1px solid var(--border);border-radius:2px;cursor:pointer;color:var(--dim);background:transparent}
+.stamp-btn:hover{border-color:var(--focus);color:var(--focus)}
+
+/* ═══ BOTTOM BAR ═══ */
+.bottom{grid-column:1/-1;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 4px;gap:2px;overflow-x:auto}
+.start{width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:4px;border:1px solid color-mix(in srgb,var(--focus) 20%,var(--border));background:color-mix(in srgb,var(--focus) 3%,transparent);color:var(--focus);transition:all 200ms;flex-shrink:0;margin-right:2px}
+.start:hover{box-shadow:0 0 10px color-mix(in srgb,var(--focus) 20%,transparent)}
+.bot-div{width:1px;height:26px;background:var(--border);flex-shrink:0;margin:0 2px}
+
+/* Toolbar buttons — morph per scope */
+.tb{display:flex;flex-direction:column;align-items:center;gap:1px;padding:3px 5px;border-radius:4px;cursor:pointer;min-width:36px;transition:all 100ms;border:1px solid transparent;flex-shrink:0}
+.tb:hover{background:var(--surface);border-color:var(--border)}
+.tb.on{background:color-mix(in srgb,var(--focus) 5%,var(--surface));border-color:color-mix(in srgb,var(--focus) 15%,var(--border))}
+.tb .i{width:16px;height:16px}
+.tb .i svg{width:12px;height:12px}
+.tb-name{font-size:5px;letter-spacing:.3px;color:var(--dim);white-space:nowrap}
+.tb.on .tb-name{color:var(--focus)}
+
+/* Scope toolbar sections */
+.tb-section{display:none;align-items:center;gap:2px}
+.tb-section.active{display:flex}
+
+.bot-spacer{flex:1}
+
+/* Inject target */
+.inject-target{display:flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;font-size:7px;color:var(--dim);margin-left:auto;flex-shrink:0}
+.inject-target .i{color:var(--focus)}
+.inject-arrow{font-size:8px;color:var(--focus);margin:0 2px}
+
+/* ═══ SCOPE COLORS ═══ */
+[data-scope="chat"] .paneA-head{background:color-mix(in srgb,var(--focus) 3%,var(--panel))}
+[data-scope="feed"] .paneB-head{background:color-mix(in srgb,var(--feed) 4%,var(--panel))}
+[data-scope="build"] .paneB-head{background:color-mix(in srgb,var(--build) 4%,var(--panel))}
+[data-scope="doc"] .paneB-head{background:color-mix(in srgb,var(--doc) 4%,var(--panel))}
+
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-diamond" viewBox="0 0 24 24"><path d="M12 2L22 12L12 22L2 12Z"/></symbol>
+<symbol id="i-term" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 9l4 3-4 3"/><line x1="12" y1="15" x2="18" y2="15"/></symbol>
+<symbol id="i-git" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><line x1="6" y1="8" x2="6" y2="16"/><path d="M6 6c0 6 12 6 12 0"/></symbol>
+<symbol id="i-gpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><line x1="9" y1="2" x2="9" y2="5"/><line x1="15" y1="2" x2="15" y2="5"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/><line x1="2" y1="9" x2="5" y2="9"/><line x1="2" y1="15" x2="5" y2="15"/><line x1="19" y1="9" x2="22" y2="9"/><line x1="19" y1="15" x2="22" y2="15"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4" ry="10"/><line x1="2" y1="12" x2="22" y2="12"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="5"/><line x1="12" y1="11" x2="21" y2="2"/><line x1="18" y1="2" x2="21" y2="5"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5.5-3.8 10.7-8 12-4.2-1.3-8-6.5-8-12V6l8-4z"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M15 4.5L18.5 8 13 14.5H9.5V11L15 4.5z"/><line x1="9" y1="15" x2="4" y2="20"/></symbol>
+<symbol id="i-fork" viewBox="0 0 24 24"><circle cx="12" cy="18" r="2"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 8v2a4 4 0 004 4h4a4 4 0 004-4V8"/><line x1="12" y1="14" x2="12" y2="16"/></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></symbol>
+<symbol id="i-morph" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10"/><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14"/></symbol>
+<symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-1 19.95c1.5.1 2-1 2-1a2 2 0 012-2h1.5a2 2 0 002-2c0-3.5-3-3.5-3-6a4 4 0 118 0"/><circle cx="8" cy="10" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="16" cy="10" r="1.5"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="8" width="4" height="12" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/></symbol>
+<symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+<symbol id="i-feed" viewBox="0 0 24 24"><path d="M4 11a9 9 0 019 9"/><path d="M4 4a16 16 0 0116 16"/><circle cx="5" cy="19" r="1"/></symbol>
+<symbol id="i-chain" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+<symbol id="i-inject" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/><circle cx="12" cy="12" r="10"/></symbol>
+<symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+<symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+<symbol id="i-dl" viewBox="0 0 24 24"><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="2" x2="12" y2="16"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+</defs></svg>
+
+<div class="shell" id="shell" data-scope="chat">
+
+  <!-- ═══ TOP BAR ═══ -->
+  <div class="topbar">
+    <div class="genesis"><span class="i glow" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-key"/></svg></span> 0x7a3f <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-lock"/></svg></span></div>
+    <div class="scope-pills">
+      <button class="scope-pill on" style="--scope-color:var(--focus)" onclick="setScope('chat')"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-msg"/></svg></span> Chat</button>
+      <button class="scope-pill" style="--scope-color:var(--feed)" onclick="setScope('feed')"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-feed"/></svg></span> Feed</button>
+      <button class="scope-pill" style="--scope-color:var(--build)" onclick="setScope('build')"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-code"/></svg></span> Build</button>
+      <button class="scope-pill" style="--scope-color:var(--doc)" onclick="setScope('doc')"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-book"/></svg></span> Doc</button>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="face-badge" id="face-badge" style="border:1px solid var(--focus);color:var(--focus)"><span class="i"><svg><use href="#i-diamond"/></svg></span> <span id="scope-label">CHAT</span></div>
+  </div>
+
+  <!-- ═══ LEFT SHELF ═══ -->
+  <div class="shelf-l" id="shelf-l">
+    <div class="rb on"><span class="i"><svg><use href="#i-layers"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-file"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-search"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-git"/></svg></span></div>
+    <div class="shelf-div"></div>
+    <div class="rb"><span class="i"><svg><use href="#i-chart"/></svg></span></div>
+  </div>
+
+  <!-- ═══ MAIN AREA ═══ -->
+  <div class="main">
+    <!-- PANE A — always chat -->
+    <div class="paneA" id="paneA">
+      <div class="paneA-head">
+        <div class="ph-dot"></div>
+        <span class="ph-label">CHAT</span>
+        <span class="ph-ctx" id="chatCtx">general</span>
+      </div>
+      <div class="chat-body" id="chatBody">
+        <!-- Chat scope content injected by JS -->
+      </div>
+      <div class="chat-input">
+        <input class="ci-field" placeholder="Ask Claude..." id="chatInput">
+        <button class="ci-send" onclick="sendMsg()">↑</button>
+      </div>
+    </div>
+
+    <!-- PANE B — scope-dependent -->
+    <div class="paneB" id="paneB">
+      <div class="paneB-head" id="paneBHead">
+        <span class="ph-dot" id="paneBDot" style="width:5px;height:5px;border-radius:50%"></span>
+        <span class="ph-label" id="paneBLabel" style="letter-spacing:1px;font-size:7px"></span>
+        <span style="flex:1"></span>
+        <button style="padding:1px 5px;font-size:6px;border:1px solid var(--border);border-radius:2px;cursor:pointer;color:var(--dim);background:transparent" onclick="closePaneB()">✕</button>
+      </div>
+      <div class="paneB-body" id="paneBBody">
+        <!-- FEED VIEW -->
+        <div class="scope-view" id="view-feed">
+          <div class="chain-bar" id="chainBar" style="display:none">
+            <span class="i" style="width:8px;height:8px;color:var(--feed)"><svg style="width:6px;height:6px"><use href="#i-chain"/></svg></span>
+            <span class="chain-node">@artdev v1.0</span>
+            <span class="chain-arrow">→</span>
+            <span class="chain-node">@devguy v1.1</span>
+            <span class="chain-arrow">→</span>
+            <span class="chain-node current">YOU (editing)</span>
+          </div>
+          <div class="feed-list" id="feedList">
+            <!-- Feed content injected by JS -->
+          </div>
+        </div>
+        <!-- BUILD VIEW -->
+        <div class="scope-view" id="view-build">
+          <div class="build-tabs">
+            <div class="build-tab on"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-file"/></svg></span> app.html</div>
+            <div class="build-tab"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-code"/></svg></span> logic.js</div>
+            <div class="build-tab"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-palette"/></svg></span> style.css</div>
+          </div>
+          <div class="build-editor" id="buildEditor">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+  &lt;title&gt;My Gently App&lt;/title&gt;
+  &lt;style&gt;
+    <span style="color:var(--build)">/* editing live — preview in chat */</span>
+    .app { padding: 16px; }
+    .counter { font-size: 24px; }
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div class="app"&gt;
+    &lt;h1&gt;Counter&lt;/h1&gt;
+    &lt;span class="counter"&gt;0&lt;/span&gt;
+    &lt;button onclick="inc()"&gt;+1&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;</div>
+          <div class="build-status">
+            <span style="color:var(--focus)">● live</span>
+            <span>hot reload: 400ms</span>
+            <span style="margin-left:auto">hardlock: 🔒 ON</span>
+          </div>
+        </div>
+        <!-- DOC VIEW -->
+        <div class="scope-view" id="view-doc">
+          <div class="doc-area">
+            <h2 style="color:var(--doc)">GentlyOS Documentation</h2>
+            <strong>Sovereignty Stack</strong><br>
+            Four tiers of isolation ensure that modifications at any layer cannot compromise layers below. The genesis key, minted as a revocable NFT, anchors the entire chain to an immutable on-chain identity.<br><br>
+            <strong>Scope System</strong><br>
+            The OS presents different faces depending on context. Each scope activates relevant toolbars, shelf contents, and pane behaviors. Scopes are: Chat (default), Feed (discovery + forking), Build (Proton workbench), Doc (versioned documentation), Student, Financial, Synesthesia.<br><br>
+            <strong>Feed Chains</strong><br>
+            Every app in the feed carries its full fork history. Injecting a feed post into the build pane creates a new branch in the chain. Modifications can be saved locally (user embed) or pushed back to the feed, extending the chain for all downstream forks.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ RIGHT SHELF ═══ -->
+  <div class="shelf-r" id="shelf-r">
+    <div class="rb" id="rb-inject"><span class="i"><svg><use href="#i-inject"/></svg></span><span class="dot" style="background:var(--focus)"></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-pin"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-feed"/></svg></span></div>
+    <div class="shelf-div"></div>
+    <div class="rb"><span class="i"><svg><use href="#i-shield"/></svg></span></div>
+  </div>
+
+  <!-- ═══ STAMP BAR ═══ -->
+  <div class="stamp">
+    <span class="stamp-text" id="stampText">[OLO|🌿general|📍1|⚡OPEN|#0000]</span>
+    <button class="stamp-btn">📋</button>
+  </div>
+
+  <!-- ═══ BOTTOM BAR ═══ -->
+  <div class="bottom" id="bottom">
+    <div class="start"><span class="i lg glow" style="color:var(--focus)"><svg><use href="#i-diamond"/></svg></span></div>
+
+    <!-- Core (always visible) -->
+    <div class="tb on"><span class="i" style="color:var(--focus)"><svg><use href="#i-diamond"/></svg></span><span class="tb-name" style="color:var(--focus)">Shell</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-term"/></svg></span><span class="tb-name">Term</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-git"/></svg></span><span class="tb-name">Git</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-gpu"/></svg></span><span class="tb-name">GPU</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-shield"/></svg></span><span class="tb-name">Vault</span></div>
+
+    <div class="bot-div"></div>
+
+    <!-- SCOPE: chat tools -->
+    <div class="tb-section active" id="tb-chat">
+      <div class="tb"><span class="i" style="color:var(--focus)"><svg><use href="#i-layers"/></svg></span><span class="tb-name">Clans</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-morph"/></svg></span><span class="tb-name">Gates</span></div>
+    </div>
+
+    <!-- SCOPE: feed tools -->
+    <div class="tb-section" id="tb-feed">
+      <div class="tb"><span class="i" style="color:var(--feed)"><svg><use href="#i-feed"/></svg></span><span class="tb-name" style="color:var(--feed)">Browse</span></div>
+      <div class="tb"><span class="i" style="color:var(--feed)"><svg><use href="#i-fork"/></svg></span><span class="tb-name">Fork</span></div>
+      <div class="tb"><span class="i" style="color:var(--feed)"><svg><use href="#i-share"/></svg></span><span class="tb-name">Post</span></div>
+      <div class="tb"><span class="i" style="color:var(--feed)"><svg><use href="#i-chain"/></svg></span><span class="tb-name">Chain</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-star"/></svg></span><span class="tb-name">Saved</span></div>
+    </div>
+
+    <!-- SCOPE: build tools -->
+    <div class="tb-section" id="tb-build">
+      <div class="tb"><span class="i" style="color:var(--build)"><svg><use href="#i-code"/></svg></span><span class="tb-name" style="color:var(--build)">Editor</span></div>
+      <div class="tb"><span class="i" style="color:var(--build)"><svg><use href="#i-play"/></svg></span><span class="tb-name">Preview</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-save"/></svg></span><span class="tb-name">Save</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-pin"/></svg></span><span class="tb-name">Pin</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-share"/></svg></span><span class="tb-name">Publish</span></div>
+    </div>
+
+    <!-- SCOPE: doc tools -->
+    <div class="tb-section" id="tb-doc">
+      <div class="tb"><span class="i" style="color:var(--doc)"><svg><use href="#i-book"/></svg></span><span class="tb-name" style="color:var(--doc)">Docs</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-edit"/></svg></span><span class="tb-name">Edit</span></div>
+      <div class="tb"><span class="i"><svg><use href="#i-git"/></svg></span><span class="tb-name">Version</span></div>
+    </div>
+
+    <div class="bot-div"></div>
+
+    <!-- Pinned user apps (always visible) -->
+    <div class="tb"><span class="i" style="color:var(--focus)"><svg><use href="#i-palette"/></svg></span><span class="tb-name" style="color:var(--focus)">Heatmap</span></div>
+    <div class="tb"><span class="i" style="color:var(--focus)"><svg><use href="#i-chart"/></svg></span><span class="tb-name" style="color:var(--focus)">Dash</span></div>
+
+    <div class="bot-spacer"></div>
+
+    <!-- Inject target indicator -->
+    <div class="inject-target" id="injectTarget" style="display:none">
+      <span class="i" style="color:var(--focus);width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-inject"/></svg></span>
+      <span class="inject-arrow">→</span>
+      <span id="injectLabel">B</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const scopes = {
+  chat: { color: '--focus', label: 'CHAT', paneB: false, icon: 'i-msg',
+    stamp: '[OLO|🌿general|📍1|⚡OPEN|#0000]' },
+  feed: { color: '--feed', label: 'FEED', paneB: true, icon: 'i-feed',
+    stamp: '[OLO|🌿feed|📍browse|⚡OPEN|#feed]' },
+  build: { color: '--build', label: 'BUILD', paneB: true, icon: 'i-code',
+    stamp: '[OLO|🌿build|📍app.html|⚡OPEN|🔒hardlock|#b1d0]' },
+  doc: { color: '--doc', label: 'DOC', paneB: true, icon: 'i-book',
+    stamp: '[OLO|🌿doc|📍sovereignty-stack|v1.0|#d0c5]' }
+};
+
+const chatMessages = {
+  chat: [
+    { type:'u', tag:'[OLO|🌿general|📍1]', text:'How does the scope system work?' },
+    { type:'a', text:'The OS has one constant: this chat pane. Everything else morphs based on scope. Click <b style="color:var(--feed)">Feed</b> in the top bar — the second pane opens with the app feed, the bottom toolbar rotates to show feed tools (browse, fork, post, chain), and the right shelf shows injection targets. Click <b style="color:var(--build)">Build</b> — pane B becomes a code editor, toolbar shows build tools.' },
+    { type:'u', tag:'[OLO|🌿general|📍2]', text:'What about tiny apps in chat?' },
+    { type:'a', text:'When I generate something interactive, it renders inline:', tiny: {
+      label: 'RENDERED · Scope Diagram',
+      html: '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div style="padding:3px 8px;border:1px solid var(--focus);border-radius:3px;color:var(--focus);font-size:7px">CHAT</div><span style="color:var(--vdim)">→</span><div style="padding:3px 8px;border:1px solid var(--feed);border-radius:3px;color:var(--feed);font-size:7px">FEED</div><span style="color:var(--vdim)">→</span><div style="padding:3px 8px;border:1px solid var(--build);border-radius:3px;color:var(--build);font-size:7px">BUILD</div><span style="color:var(--vdim)">→</span><div style="padding:3px 8px;border:1px solid var(--doc);border-radius:3px;color:var(--doc);font-size:7px">DOC</div></div>',
+      actions: ['Pin','→ Feed','→ Build','Fork']
+    }},
+  ],
+  feed: [
+    { type:'u', tag:'[OLO|🌿feed|📍browse]', text:'Show me what\'s trending on the feed' },
+    { type:'a', text:'Feed is open in pane B. I see 3 trending apps. The <b>Pixel Art Editor</b> has the most forks — its chain is 4 deep. Want me to pull it into the editor so you can modify it?' },
+    { type:'u', tag:'[OLO|🌿feed|📍chain]', text:'Yeah, fork the pixel art editor — I want to add layers' },
+    { type:'a', text:'Forked. I\'ve injected the chain into pane B — you can see the fork history in the chain bar. The editor has the full source. I\'ll help you add the layer system. When you\'re done, you can:', tiny:{
+      label:'FORK OPTIONS',
+      html:'<div style="font-size:8px;color:var(--muted);line-height:1.7"><span style="color:var(--focus)">1.</span> Save as embedded app (your toolbar)<br><span style="color:var(--feed)">2.</span> Push back to feed (extends the chain)<br><span style="color:var(--code)">3.</span> Both — pin locally AND publish</div>',
+      actions:['Save Local','→ Feed','Both']
+    }}
+  ],
+  build: [
+    { type:'u', tag:'[OLO|🌿build|📍app.html]', text:'Help me build a counter app' },
+    { type:'a', text:'I\'ve scaffolded it in pane B. You can see the HTML with a basic counter structure. The hardlock is ON — your preview renders safely. I\'ll add increment logic:', tiny:{
+      label:'LIVE PREVIEW · Counter App',
+      html:'<div style="text-align:center;padding:6px"><div style="font-size:14px;color:var(--text);margin-bottom:4px">0</div><div style="display:inline-block;padding:2px 10px;border:1px solid var(--build);border-radius:3px;color:var(--build);font-size:8px;cursor:pointer">+1</div></div>',
+      actions:['Pin to Toolbar','→ Feed','Iterate']
+    }},
+  ],
+  doc: [
+    { type:'u', tag:'[OLO|🌿doc|📍sovereignty]', text:'Document the scope system' },
+    { type:'a', text:'I\'ve opened the doc editor in pane B with the Sovereignty Stack reference. I\'ll add a new section on scope switching:', tiny:{
+      label:'DOC PREVIEW · Scope System',
+      html:'<div style="font-size:7px;color:var(--muted);line-height:1.6"><b style="color:var(--doc)">§ Scope System</b><br>GentlyOS presents different operational faces through scope switching. The chat pane remains constant; all other UI elements morph to serve the active scope.<br><br><b style="color:var(--doc)">Active Scopes:</b> Chat, Feed, Build, Doc, Student, Financial, Synesthesia</div>',
+      actions:['Commit v1.1','→ Feed','Export']
+    }},
+  ]
+};
+
+const feedPosts = [
+  { icon:'i-palette', title:'Pixel Art Editor', author:'@artdev', ver:'v1.2.0', pins:342, stars:4.8,
+    desc:'Sprite editor with layers. Self-morphing. 4 forks deep.',
+    tags:['morphable','stamped','gpu'], chain:4 },
+  { icon:'i-chart', title:'Crypto Dashboard', author:'@findev', ver:'v3.0.1', pins:1200, stars:4.5,
+    desc:'Real-time portfolio tracker. WebSocket feeds.',
+    tags:['network','stamped'], chain:2 },
+  { icon:'i-music', title:'Gently Synth', author:'@sounddev', ver:'v0.8.0', pins:89, stars:4.9,
+    desc:'Web Audio synth. Gates map to oscillators.',
+    tags:['morphable','gpu'], chain:1 },
+];
+
+let currentScope = 'chat';
+
+function setScope(scope) {
+  currentScope = scope;
+  const s = scopes[scope];
+  const shell = document.getElementById('shell');
+  shell.dataset.scope = scope;
+
+  // Scope pills
+  document.querySelectorAll('.scope-pill').forEach(p => p.classList.remove('on'));
+  event.currentTarget.classList.add('on');
+
+  // Face badge
+  const c = getComputedStyle(document.documentElement).getPropertyValue(s.color).trim();
+  const badge = document.getElementById('face-badge');
+  badge.style.borderColor = c; badge.style.color = c;
+  document.getElementById('scope-label').textContent = s.label;
+
+  // Pane B
+  const pB = document.getElementById('paneB');
+  pB.classList.toggle('open', s.paneB);
+  const dot = document.getElementById('paneBDot');
+  const lbl = document.getElementById('paneBLabel');
+  dot.style.background = c; lbl.style.color = c; lbl.textContent = s.label;
+
+  // Scope views
+  document.querySelectorAll('.scope-view').forEach(v => v.classList.remove('active'));
+  const view = document.getElementById('view-' + scope);
+  if (view) view.classList.add('active');
+
+  // Toolbar sections
+  document.querySelectorAll('.tb-section').forEach(s => s.classList.remove('active'));
+  const tbSec = document.getElementById('tb-' + scope);
+  if (tbSec) tbSec.classList.add('active');
+
+  // Inject target
+  const it = document.getElementById('injectTarget');
+  it.style.display = s.paneB ? 'flex' : 'none';
+  it.querySelector('.inject-arrow').style.color = c;
+  document.getElementById('injectLabel').textContent = s.label;
+  document.getElementById('injectLabel').style.color = c;
+
+  // Stamp
+  document.getElementById('stampText').textContent = s.stamp;
+  document.getElementById('stampText').style.color = c;
+
+  // Chat context
+  document.getElementById('chatCtx').textContent = scope === 'chat' ? 'general' : scope + ' context';
+
+  // Render chat
+  renderChat(scope);
+
+  // Feed content
+  if (scope === 'feed') renderFeed();
+
+  // Chain bar
+  document.getElementById('chainBar').style.display = 'none';
+
+  // Left shelf morphs
+  morphLeftShelf(scope);
+}
+
+function renderChat(scope) {
+  const body = document.getElementById('chatBody');
+  const msgs = chatMessages[scope] || [];
+  body.innerHTML = '';
+  msgs.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'msg ' + (m.type === 'u' ? 'u' : 'a');
+    let html = '';
+    if (m.tag) html += `<div class="msg-tag">${m.tag}</div>`;
+    html += m.text;
+    if (m.tiny) {
+      html += `<div class="tiny"><div class="tiny-label">${m.tiny.label}</div><div class="tiny-preview">${m.tiny.html}</div><div class="tiny-actions">`;
+      m.tiny.actions.forEach((a,i) => {
+        html += `<button class="tiny-btn ${i===0?'pri':''}">${a}</button>`;
+      });
+      html += '</div></div>';
+    }
+    div.innerHTML = html;
+    body.appendChild(div);
+  });
+  body.scrollTop = body.scrollHeight;
+}
+
+function renderFeed() {
+  const list = document.getElementById('feedList');
+  list.innerHTML = '';
+  feedPosts.forEach((p,idx) => {
+    const div = document.createElement('div');
+    div.className = 'feed-post';
+    div.onclick = () => selectFeedPost(idx);
+    div.innerHTML = `
+      <div class="fp-head">
+        <div class="fp-icon"><span class="i" style="color:var(--feed)"><svg><use href="#${p.icon}"/></svg></span></div>
+        <span class="fp-title"><b>${p.title}</b></span>
+        <span class="fp-meta">${p.ver} · ${p.author}</span>
+      </div>
+      <div class="fp-desc">${p.desc}</div>
+      <div class="fp-tags">
+        ${p.tags.map(t => `<span class="fp-tag${t==='morphable'?' m':''}">${t}</span>`).join('')}
+        <span class="fp-tag" style="color:var(--feed);border-color:color-mix(in srgb,var(--feed) 25%,var(--border))">chain: ${p.chain}</span>
+        <span class="fp-tag">⬇${p.pins}</span>
+        <span class="fp-tag">★${p.stars}</span>
+      </div>
+      <div class="fp-actions">
+        <button class="fp-btn pri" onclick="event.stopPropagation();injectToEdit(${idx})">
+          <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-inject"/></svg></span> Inject → Edit
+        </button>
+        <button class="fp-btn" onclick="event.stopPropagation()">
+          <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-pin"/></svg></span> Pin
+        </button>
+        <button class="fp-btn" onclick="event.stopPropagation()">
+          <span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-fork"/></svg></span> Fork
+        </button>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+function selectFeedPost(idx) {
+  document.querySelectorAll('.feed-post').forEach(p => p.classList.remove('selected'));
+  document.querySelectorAll('.feed-post')[idx].classList.add('selected');
+}
+
+function injectToEdit(idx) {
+  const p = feedPosts[idx];
+  // Show chain bar
+  document.getElementById('chainBar').style.display = 'flex';
+  // Switch to build view inside pane B
+  document.querySelectorAll('.scope-view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-build').classList.add('active');
+  // Update toolbar to show build tools
+  document.querySelectorAll('.tb-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tb-build').classList.add('active');
+  // Update editor content
+  document.getElementById('buildEditor').innerHTML = `<span style="color:var(--feed)">/* Forked from: ${p.title} by ${p.author} ${p.ver} */</span>
+<span style="color:var(--feed)">/* Chain depth: ${p.chain + 1} (your fork) */</span>
+
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+  &lt;title&gt;${p.title} — Your Fork&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  <span style="color:var(--dim)">/* original source loaded */</span>
+  <span style="color:var(--build)">/* ← edit here, Claude helps in chat */</span>
+&lt;/body&gt;
+&lt;/html&gt;`;
+  // Update pane B label
+  document.getElementById('paneBLabel').textContent = 'EDITING: ' + p.title;
+  document.getElementById('paneBLabel').style.color = getComputedStyle(document.documentElement).getPropertyValue('--build').trim();
+  document.getElementById('paneBDot').style.background = getComputedStyle(document.documentElement).getPropertyValue('--build').trim();
+
+  // Add chat message about the fork
+  const body = document.getElementById('chatBody');
+  const msg = document.createElement('div');
+  msg.className = 'msg a';
+  msg.innerHTML = `Forked <b>${p.title}</b> into the editor. Chain depth is now ${p.chain + 1}. The source is loaded and ready to edit. What do you want to change?
+    <div class="tiny"><div class="tiny-label">FORK OPTIONS</div><div class="tiny-preview">
+    <div style="font-size:8px;color:var(--muted);line-height:1.7">
+    <span style="color:var(--focus)">→ Save</span> as embedded app (your toolbar)<br>
+    <span style="color:var(--feed)">→ Push</span> back to feed (extends chain to depth ${p.chain + 2})<br>
+    <span style="color:var(--code)">→ Both</span> — pin locally AND publish
+    </div></div>
+    <div class="tiny-actions"><button class="tiny-btn pri">Save Local</button><button class="tiny-btn">→ Feed Chain</button><button class="tiny-btn">Both</button></div></div>`;
+  body.appendChild(msg);
+  body.scrollTop = body.scrollHeight;
+}
+
+function morphLeftShelf(scope) {
+  const shelf = document.getElementById('shelf-l');
+  const icons = {
+    chat: ['i-layers','i-file','i-search','i-git',null,'i-chart'],
+    feed: ['i-feed','i-star','i-chain','i-search',null,'i-chart'],
+    build: ['i-file','i-code','i-git','i-term',null,'i-play'],
+    doc: ['i-book','i-edit','i-search','i-git',null,'i-layers']
+  };
+  const btns = shelf.querySelectorAll('.rb');
+  const ic = icons[scope] || icons.chat;
+  ic.forEach((icon, i) => {
+    if (btns[i] && icon) {
+      btns[i].querySelector('use').setAttribute('href', '#' + icon);
+      btns[i].style.display = '';
+    }
+  });
+  // Color the first one per scope
+  const c = getComputedStyle(document.documentElement).getPropertyValue(scopes[scope].color).trim();
+  btns.forEach(b => { b.classList.remove('on'); b.style.color = ''; });
+  btns[0].classList.add('on'); btns[0].style.color = c;
+}
+
+function closePaneB() {
+  document.getElementById('paneB').classList.remove('open');
+  document.getElementById('injectTarget').style.display = 'none';
+}
+
+function sendMsg() {
+  const input = document.getElementById('chatInput');
+  if (!input.value.trim()) return;
+  const body = document.getElementById('chatBody');
+  const msg = document.createElement('div');
+  msg.className = 'msg u';
+  const s = scopes[currentScope];
+  msg.innerHTML = `<div class="msg-tag" style="color:${getComputedStyle(document.documentElement).getPropertyValue(s.color).trim()}">[OLO|🌿${currentScope}]</div>${input.value}`;
+  body.appendChild(msg);
+  input.value = '';
+  body.scrollTop = body.scrollHeight;
+  // Auto-response
+  setTimeout(() => {
+    const resp = document.createElement('div');
+    resp.className = 'msg a';
+    resp.textContent = `I'm working in ${s.label} scope. ${currentScope==='feed'?'I can see the feed in pane B — want me to fork something?':currentScope==='build'?'The editor is live in pane B. What should I build?':currentScope==='doc'?'Doc editor is open. What should I write?':'How can I help?'}`;
+    body.appendChild(resp);
+    body.scrollTop = body.scrollHeight;
+  }, 400);
+}
+
+document.getElementById('chatInput').addEventListener('keydown', e => { if(e.key==='Enter') sendMsg(); });
+
+// Init
+renderChat('chat');
+</script>
+</body>
+</html>

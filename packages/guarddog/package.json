@@ -1,0 +1,58 @@
+{
+  "name": "guarddog",
+  "version": "1.0.0",
+  "description": "IO Defense & Token Protection — Keyboard goo defense, homoglyph detection, invisible char stripping, BTC-timestamped vulnerability evidence, rainbow table analysis",
+  "main": "index.js",
+  "bin": {
+    "guarddog": "./cli/guarddog.js",
+    "gd": "./cli/guarddog.js"
+  },
+  "scripts": {
+    "test": "node test/test.js",
+    "init": "node cli/guarddog.js init",
+    "scan": "node cli/guarddog.js scan",
+    "dashboard": "node dashboard/server.js"
+  },
+  "keywords": [
+    "security",
+    "guarddog",
+    "homoglyph",
+    "unicode",
+    "sanitizer",
+    "token",
+    "protection",
+    "vulnerability",
+    "scanner",
+    "rainbow-table",
+    "btc",
+    "timestamp",
+    "keyboard",
+    "defense",
+    "gentlyos",
+    "sovereignty"
+  ],
+  "author": "Thomas Lee <licensing@gentlyos.io>",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gentlyos/guarddog"
+  },
+  "homepage": "https://gentlyos.io/guarddog",
+  "funding": {
+    "type": "custom",
+    "url": "https://gentlyos.io/support"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "files": [
+    "index.js",
+    "lib/",
+    "cli/",
+    "dashboard/",
+    "LICENSE.md",
+    "README.md"
+  ],
+  "dependencies": {},
+  "devDependencies": {}
+}

@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gently Dev Workbench — Hardlocked</title>
+<style>
+/*
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  HARDLOCK ARCHITECTURE                                      ║
+  ║                                                              ║
+  ║  5 ISOLATION LAYERS:                                         ║
+  ║                                                              ║
+  ║  ┌─────────────────────────────────────────────────────┐    ║
+  ║  │ LAYER 1: IFRAME SANDBOX                              │    ║
+  ║  │ • allow-scripts only (no forms, no popups, no nav)  │    ║
+  ║  │ • unique null origin (can't access parent)          │    ║
+  ║  │ • CSP blocks external resources                     │    ║
+  ║  ├─────────────────────────────────────────────────────┤    ║
+  ║  │ LAYER 2: VALIDATION GATE                             │    ║
+  ║  │ • HTML parse check (DOMParser, catch malformed)     │    ║
+  ║  │ • JS static analysis (infinite loop detection)      │    ║
+  ║  │ • CSS structural lock (grid/display protected)      │    ║
+  ║  │ • Dangerous pattern blocklist                       │    ║
+  ║  ├─────────────────────────────────────────────────────┤    ║
+  ║  │ LAYER 3: SNAPSHOT + ROLLBACK                         │    ║
+  ║  │ • Every successful render → snapshot saved          │    ║
+  ║  │ • Failed validation → rejected, snapshot preserved  │    ║
+  ║  │ • Manual rollback to any snapshot                   │    ║
+  ║  │ • Factory reset to original source                  │    ║
+  ║  ├─────────────────────────────────────────────────────┤    ║
+  ║  │ LAYER 4: WATCHDOG                                    │    ║
+  ║  │ • Heartbeat ping every 2s to inner iframe           │    ║
+  ║  │ • No pong in 4s → iframe declared dead              │    ║
+  ║  │ • Auto-rollback to last good snapshot               │    ║
+  ║  │ • Kill + recreate iframe on unrecoverable crash     │    ║
+  ║  ├─────────────────────────────────────────────────────┤    ║
+  ║  │ LAYER 5: STRUCTURAL LOCKS                            │    ║
+  ║  │ • .shell grid-template is APPENDED, not replaced    │    ║
+  ║  │ • body/html display:none blocked                    │    ║
+  ║  │ • Required elements enforced (shell div must exist) │    ║
+  ║  │ • CSS variable overrides ONLY (no rule deletion)    │    ║
+  ║  └─────────────────────────────────────────────────────┘    ║
+  ║                                                              ║
+  ║  EDIT FLOW:                                                  ║
+  ║                                                              ║
+  ║  Keystroke → 400ms debounce → VALIDATE → pass? →            ║
+  ║    → snapshot current good state                             ║
+  ║    → inject into iframe                                      ║
+  ║    → start watchdog                                          ║
+  ║    → heartbeat confirms alive                                ║
+  ║    → mark as new "last good"                                 ║
+  ║                                                              ║
+  ║  Keystroke → 400ms debounce → VALIDATE → FAIL? →            ║
+  ║    → show error in status bar                                ║
+  ║    → preview stays on last good state                        ║
+  ║    → editor shows error gutter                               ║
+  ║    → NO injection into iframe                                ║
+  ╚══════════════════════════════════════════════════════════════╝
+*/
+
+:root {
+  --bg:         #0d1117;
+  --bg-sidebar: #010409;
+  --bg-editor:  #0d1117;
+  --bg-tab:     #161b22;
+  --bg-status:  #0a0e14;
+  --border:     #21262d;
+  --text:       #c9d1d9;
+  --muted:      #8b949e;
+  --dim:        #484f58;
+  --accent:     #00e5a0;
+  --blue:       #58a6ff;
+  --purple:     #bc8cff;
+  --orange:     #d29922;
+  --red:        #ff7b72;
+  --green:      #7ee787;
+  --font:       'SF Mono','JetBrains Mono','Fira Code',monospace;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--font); height:100vh; overflow:hidden; }
+
+.workbench {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  grid-template-rows: 32px 1fr 22px;
+  height: 100vh;
+}
+
+/* Activity bar */
+.activity-bar {
+  grid-row: 1/-1;
+  background: var(--bg-sidebar); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 2px;
+}
+.act-btn {
+  width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; border-radius:4px; font-size:16px; color:var(--dim); transition:color 120ms;
+  position:relative;
+}
+.act-btn:hover { color:var(--text); }
+.act-btn.active { color:var(--text); }
+.act-btn.active::before {
+  content:''; position:absolute; left:0; top:6px; bottom:6px; width:2px;
+  background:var(--accent); border-radius:1px;
+}
+.act-spacer { flex:1; }
+
+/* Top bar */
+.top-bar {
+  display:flex; align-items:center; background:var(--bg-tab);
+  border-bottom:1px solid var(--border); padding:0 8px; gap:4px;
+}
+.top-title { font-size:11px; color:var(--muted); letter-spacing:0.5px; margin-right:auto; }
+.top-btn {
+  padding:3px 10px; font-size:9px; letter-spacing:0.5px;
+  border:1px solid var(--border); border-radius:3px; cursor:pointer;
+  color:var(--dim); background:transparent; transition:all 150ms;
+}
+.top-btn:hover { color:var(--text); border-color:var(--muted); }
+.top-btn.active { color:var(--accent); border-color:var(--accent); }
+.top-btn.warn { color:var(--orange); border-color:var(--orange); }
+.top-btn.locked { color:var(--accent); border-color:var(--accent); background:color-mix(in srgb,var(--accent) 8%,transparent); }
+
+/* Split */
+.split-view { display:flex; overflow:hidden; }
+.split-handle {
+  width:4px; cursor:col-resize; background:var(--border); flex-shrink:0; transition:background 200ms;
+}
+.split-handle:hover,.split-handle.dragging { background:var(--accent); }
+
+/* Preview */
+.preview-pane { flex:1; display:flex; flex-direction:column; min-width:200px; }
+.preview-header {
+  display:flex; align-items:center; padding:0 8px; height:28px;
+  background:var(--bg-tab); border-bottom:1px solid var(--border); gap:6px; flex-shrink:0;
+}
+.preview-dot { width:7px; height:7px; border-radius:50%; }
+.preview-label { font-size:8px; letter-spacing:1.5px; color:var(--dim); }
+.preview-info { flex:1; text-align:center; font-size:8px; color:var(--dim); }
+.preview-btn {
+  padding:2px 6px; font-size:8px; border:1px solid var(--border); border-radius:2px;
+  cursor:pointer; color:var(--dim); background:transparent; transition:all 120ms;
+}
+.preview-btn:hover { color:var(--text); border-color:var(--muted); }
+
+.preview-frame-container { flex:1; position:relative; background:#08080c; }
+.preview-frame { position:absolute; inset:0; width:100%; height:100%; border:none; background:#08080c; }
+
+/* Crash overlay */
+.crash-overlay {
+  position:absolute; inset:0;
+  background:rgba(8,8,12,0.95);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+  z-index:10; pointer-events:none; opacity:0; transition:opacity 300ms;
+}
+.crash-overlay.visible { opacity:1; pointer-events:auto; }
+.crash-icon { font-size:32px; }
+.crash-title { font-size:12px; color:var(--red); letter-spacing:1px; }
+.crash-msg { font-size:10px; color:var(--muted); max-width:300px; text-align:center; line-height:1.5; }
+.crash-btn {
+  padding:6px 16px; font-size:9px; letter-spacing:1px;
+  border:1px solid var(--accent); border-radius:4px; cursor:pointer;
+  color:var(--accent); background:transparent; transition:all 150ms;
+}
+.crash-btn:hover { background:color-mix(in srgb,var(--accent) 12%,transparent); }
+
+/* Editor */
+.editor-pane { flex:1; display:flex; flex-direction:column; min-width:300px; }
+.editor-tabs {
+  display:flex; align-items:center; background:var(--bg-tab);
+  border-bottom:1px solid var(--border); overflow-x:auto; flex-shrink:0;
+}
+.ed-tab {
+  padding:6px 14px; font-size:10px; cursor:pointer; color:var(--muted);
+  border-right:1px solid var(--border); display:flex; align-items:center; gap:6px;
+  white-space:nowrap; transition:all 120ms;
+}
+.ed-tab:hover { color:var(--text); }
+.ed-tab.active { background:var(--bg-editor); color:var(--text); border-bottom:1px solid var(--bg-editor); margin-bottom:-1px; }
+.ed-tab-dot { width:5px; height:5px; border-radius:50%; }
+
+.editor-breadcrumb {
+  display:flex; align-items:center; padding:2px 12px;
+  background:var(--bg-editor); border-bottom:1px solid color-mix(in srgb,var(--border) 50%,transparent);
+  font-size:9px; color:var(--dim); gap:4px; flex-shrink:0;
+}
+.bread-sep { opacity:0.3; }
+
+/* Validation bar */
+.validation-bar {
+  display:flex; align-items:center; padding:2px 12px; gap:6px;
+  background:var(--bg-editor); border-bottom:1px solid color-mix(in srgb,var(--border) 50%,transparent);
+  font-size:8px; flex-shrink:0; min-height:20px; transition:background 200ms;
+}
+.validation-bar.error { background:color-mix(in srgb,var(--red) 8%,var(--bg-editor)); }
+.val-icon { font-size:10px; }
+.val-msg { color:var(--dim); flex:1; }
+.val-msg.error { color:var(--red); }
+.val-msg.ok { color:var(--accent); }
+.val-count { color:var(--dim); }
+
+.editor-body { flex:1; position:relative; overflow:hidden; }
+.code-container { position:absolute; inset:0; display:flex; }
+.line-numbers {
+  width:48px; padding:8px 0; text-align:right; font-size:11px; line-height:1.6;
+  color:var(--dim); background:var(--bg-editor);
+  border-right:1px solid color-mix(in srgb,var(--border) 50%,transparent);
+  overflow:hidden; user-select:none; flex-shrink:0;
+}
+.line-num { padding-right:12px; }
+.line-num.error-line { color:var(--red); background:color-mix(in srgb,var(--red) 8%,transparent); }
+.code-textarea {
+  flex:1; background:var(--bg-editor); color:var(--text); font-family:var(--font);
+  font-size:12px; line-height:1.6; padding:8px 12px; border:none; outline:none;
+  resize:none; tab-size:2; white-space:pre; overflow:auto; caret-color:var(--accent);
+}
+
+/* Status bar */
+.status-bar {
+  grid-column:1/-1; background:var(--bg-status); border-top:1px solid var(--border);
+  display:flex; align-items:center; padding:0 10px; font-size:10px; gap:12px;
+}
+.status-item { color:var(--muted); display:flex; align-items:center; gap:4px; }
+.status-accent { color:var(--accent); }
+.status-warn { color:var(--orange); }
+.status-error { color:var(--red); }
+.status-spacer { flex:1; }
+.status-dot { width:6px; height:6px; border-radius:50%; }
+.status-dot.live { background:var(--accent); }
+.status-dot.stale { background:var(--orange); }
+.status-dot.dead { background:var(--red); }
+.status-dot.validating { background:var(--blue); }
+
+/* Snapshot list */
+.snapshot-drawer {
+  position:absolute; top:28px; right:0; width:260px;
+  background:var(--bg-tab); border:1px solid var(--border); border-radius:4px;
+  z-index:50; display:none; max-height:300px; overflow-y:auto;
+  box-shadow:0 4px 12px rgba(0,0,0,0.4);
+}
+.snapshot-drawer.visible { display:block; }
+.snap-item {
+  padding:6px 10px; font-size:9px; cursor:pointer;
+  border-bottom:1px solid var(--border); color:var(--muted); transition:background 100ms;
+}
+.snap-item:hover { background:var(--bg); color:var(--text); }
+.snap-item.current { color:var(--accent); }
+.snap-time { color:var(--dim); font-size:8px; }
+.snap-label { margin-left:6px; }
+
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<div class="workbench">
+  <!-- Activity bar -->
+  <div class="activity-bar">
+    <div class="act-btn active">📁</div>
+    <div class="act-btn">🔍</div>
+    <div class="act-btn">⑂</div>
+    <div class="act-btn">◆</div>
+    <div class="act-spacer"></div>
+    <div class="act-btn">⚙</div>
+  </div>
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <span class="top-title">GENTLY DEV WORKBENCH</span>
+    <button class="top-btn locked" id="lock-btn" onclick="toggleLock()">🔒 HARDLOCK ON</button>
+    <button class="top-btn" onclick="setLayout('split')">◧ Split</button>
+    <button class="top-btn" onclick="setLayout('preview')">□ Preview</button>
+    <button class="top-btn" onclick="setLayout('editor')">▤ Editor</button>
+    <button class="top-btn active" id="hot-btn" onclick="toggleHot()">⚡ Hot Reload</button>
+  </div>
+
+  <!-- Split -->
+  <div class="split-view" id="split-view">
+    <!-- Preview -->
+    <div class="preview-pane" id="preview-pane">
+      <div class="preview-header">
+        <div class="preview-dot" style="background:var(--accent)" id="preview-dot"></div>
+        <span class="preview-label">LIVE PREVIEW</span>
+        <span class="preview-info" id="preview-info">Hardlocked • Validated • Watchdog active</span>
+        <button class="preview-btn" onclick="reloadPreview()">↻ Reload</button>
+        <button class="preview-btn" onclick="toggleSnapshots()">📸 Snapshots</button>
+        <button class="preview-btn" onclick="factoryReset()">⏮ Factory</button>
+      </div>
+      <div class="preview-frame-container">
+        <iframe class="preview-frame" id="preview-frame"
+          sandbox="allow-scripts"
+        ></iframe>
+        <div class="crash-overlay" id="crash-overlay">
+          <div class="crash-icon">⚠</div>
+          <div class="crash-title">PREVIEW CRASHED</div>
+          <div class="crash-msg" id="crash-msg">The embedded app stopped responding. Rolling back to last known good state.</div>
+          <button class="crash-btn" onclick="rollbackToGood()">↩ ROLLBACK</button>
+        </div>
+        <div class="snapshot-drawer" id="snapshot-drawer"></div>
+      </div>
+    </div>
+
+    <div class="split-handle" id="split-handle"></div>
+
+    <!-- Editor -->
+    <div class="editor-pane" id="editor-pane">
+      <div class="editor-tabs" id="editor-tabs">
+        <div class="ed-tab active" data-file="shell.html" onclick="openFile('shell.html')">
+          <span class="ed-tab-dot" style="background:var(--orange)"></span> shell.html
+        </div>
+        <div class="ed-tab" data-file="main.js" onclick="openFile('main.js')">
+          <span class="ed-tab-dot" style="background:var(--orange)"></span> main.js
+        </div>
+        <div class="ed-tab" data-file="tokens.css" onclick="openFile('tokens.css')">
+          <span class="ed-tab-dot" style="background:var(--blue)"></span> tokens.css
+        </div>
+      </div>
+
+      <div class="editor-breadcrumb">
+        <span>gently-os</span><span class="bread-sep">›</span>
+        <span>app</span><span class="bread-sep">›</span>
+        <span id="bread-file" style="color:var(--text)">shell.html</span>
+      </div>
+
+      <div class="validation-bar" id="validation-bar">
+        <span class="val-icon" id="val-icon">✓</span>
+        <span class="val-msg ok" id="val-msg">All checks passed</span>
+        <span class="val-count" id="val-count">0 errors · 0 warnings</span>
+      </div>
+
+      <div class="editor-body">
+        <div class="code-container">
+          <div class="line-numbers" id="line-numbers"></div>
+          <textarea class="code-textarea" id="code-editor" spellcheck="false"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span class="status-item">
+      <span class="status-dot live" id="status-dot"></span>
+      <span id="status-sync">Live</span>
+    </span>
+    <span class="status-item status-accent" id="status-lock">🔒 Hardlocked</span>
+    <span class="status-item" id="status-watchdog">♥ Watchdog: OK</span>
+    <span class="status-item" id="status-snaps">📸 0 snapshots</span>
+    <span class="status-item" id="status-file">shell.html</span>
+    <span class="status-spacer"></span>
+    <span class="status-item" id="status-cursor">Ln 1, Col 1</span>
+    <span class="status-item" id="status-lang">HTML</span>
+  </div>
+</div>
+
+<script>
+/*
+  ═══════════════════════════════════════════════════════════
+  LAYER 0: FILE SYSTEM (mock — real fs in Electron)
+  ═══════════════════════════════════════════════════════════
+*/
+
+const FACTORY = {};  // Immutable factory defaults
+const files = {};    // Working copies
+
+// Factory source — THE ORIGINAL that can never be lost
+FACTORY['shell.html'] = `<!DOCTYPE html>
+<html><head><style>
+:root {
+  --bg:#08080c; --shelf:#0c0c12; --panel:#0e0e16; --surface:#12121c;
+  --border:#1a1a2e; --text:#e0e0e8; --muted:#9999aa; --dim:#666680;
+  --accent:#00e5a0; --process:#4d9fff; --warn:#ffd93d;
+  --shelf-w:220px; --bottom-h:200px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'SF Mono',monospace; height:100vh; overflow:hidden; }
+.shell {
+  display:grid;
+  grid-template-columns:var(--shelf-w) 1fr 1fr var(--shelf-w);
+  grid-template-rows:28px 32px 1fr 30px var(--bottom-h);
+  height:100vh;
+}
+.const-bar { grid-column:1/-1; background:var(--panel); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 10px; gap:6px; font-size:8px; }
+.chip { padding:2px 8px; background:var(--surface); border:1px solid var(--border); border-radius:3px; color:var(--dim); }
+.chip b { color:var(--text); } .chip i { color:var(--dim); font-style:normal; }
+.lshelf { grid-row:2/-1; background:var(--shelf); border-right:1px solid var(--border); padding:6px; }
+.rshelf { grid-row:2/-1; grid-column:4; background:var(--shelf); border-left:1px solid var(--border); padding:6px; }
+.sh { font-size:7px; letter-spacing:2px; color:#333; padding:4px; border-bottom:1px solid var(--border); margin-bottom:4px; }
+.clan { display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:3px; cursor:pointer; font-size:10px; color:var(--muted); margin:1px 0; }
+.clan:hover { background:var(--surface); color:var(--text); }
+.clan.on { background:color-mix(in srgb,var(--accent) 8%,var(--bg)); color:var(--accent); }
+.dot { width:6px; height:6px; border-radius:50%; }
+.meta { font-size:7px; color:var(--dim); margin-left:auto; }
+.tabs { background:var(--panel); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 6px; }
+.tab { padding:4px 10px; font-size:8px; color:var(--dim); cursor:pointer; }
+.tab.on { color:var(--text); background:var(--surface); border-radius:3px 3px 0 0; }
+.ind { margin-left:auto; width:8px; height:8px; border-radius:50%; border:1.5px solid; }
+.pane { background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.pane-a { border-right:1px solid var(--border); }
+.chat { width:80%; max-width:380px; display:flex; flex-direction:column; gap:4px; }
+.msg { padding:8px 12px; border-radius:6px; max-width:85%; font-size:10px; line-height:1.5; margin:3px 0; }
+.msg.u { background:var(--surface); border:1px solid var(--border); color:var(--muted); align-self:flex-end; }
+.msg.c { background:var(--surface); color:var(--text); align-self:flex-start; }
+.stmp { font-size:7px; color:var(--accent); opacity:0.5; }
+.stamp-bar { grid-column:2/4; background:var(--panel); border-top:1px solid var(--border); display:flex; align-items:center; padding:0 10px; font-size:8px; color:var(--accent); }
+.bottom { grid-column:2/4; background:var(--panel); border-top:1px solid var(--border); display:flex; flex-direction:column; }
+.bhead { display:flex; align-items:center; gap:3px; padding:4px 6px; border-bottom:1px solid var(--border); font-size:7px; }
+.zbtn { padding:3px 8px; border:1px solid var(--border); border-radius:3px; color:var(--dim); cursor:pointer; letter-spacing:1px; }
+.zbtn.on { border-color:var(--accent); color:var(--accent); }
+.keys { flex:1; display:flex; flex-direction:column; gap:3px; justify-content:center; padding:6px; }
+.kr { display:flex; gap:3px; justify-content:center; }
+.k { height:28px; min-width:28px; padding:0 5px; display:flex; align-items:center; justify-content:center; font-size:11px; border-radius:3px; cursor:pointer; border:1px solid var(--border); background:var(--surface); }
+.k:hover { filter:brightness(1.3); }
+.k.g { font-size:9px; min-width:40px; font-weight:600; }
+.k.g.yes { color:var(--accent); border-color:color-mix(in srgb,var(--accent) 30%,var(--border)); }
+.k.g.open { color:var(--dim); }
+.k.act { font-size:8px; min-width:50px; color:var(--muted); }
+.k.sp { flex:1; max-width:250px; }
+
+/* === WATCHDOG HEARTBEAT === */
+.__gently_heartbeat { display:none; }
+</style>
+<script>
+// Heartbeat responder — workbench pings, we pong
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'gently-ping') {
+    e.source.postMessage({ type: 'gently-pong', ts: Date.now() }, '*');
+  }
+});
+<\\/script>
+</head>
+<body>
+<div class="shell">
+  <div class="const-bar">
+    <span class="chip"><span style="color:var(--accent);opacity:0.5">const/</span> <b>Blue Channel</b> <i>"carrier verified"</i></span>
+    <span class="chip"><span style="color:var(--accent);opacity:0.5">const/</span> <b>JPEG</b> <i>"75% chroma lost"</i></span>
+  </div>
+  <div class="lshelf">
+    <div class="sh">CLANS</div>
+    <div class="clan on"><div class="dot" style="background:var(--accent)"></div> Encoding Strategy <span class="meta">d=4</span></div>
+    <div class="clan"><div class="dot" style="background:#c77dff"></div> Channel Capacity <span class="meta">d=3</span></div>
+    <div class="clan"><div class="dot" style="background:var(--warn)"></div> Error Correction <span class="meta">d=1</span></div>
+    <div class="sh" style="margin-top:8px;opacity:0.4">FROZEN</div>
+    <div class="clan" style="opacity:0.3"><div class="dot" style="background:#88ccff"></div> Blue Channel ❄</div>
+  </div>
+  <div class="tabs"><div class="tab on">Encoding</div><div class="ind" style="border-color:var(--accent);background:var(--accent);margin-left:auto"></div></div>
+  <div class="tabs"><div class="tab on">Capacity</div><div class="ind" style="border-color:var(--process);margin-left:auto"></div></div>
+  <div class="pane pane-a"><div class="chat"><div class="msg u"><div class="stmp">[OLO|🌿encoding|📍4|#a3f2]</div>How does freq encoding survive JPEG?</div><div class="msg c">Mid-frequency DCT coefficients (4-12) least affected by quantization.</div></div></div>
+  <div class="pane"><div class="chat"><div class="msg u"><div class="stmp">[OLO|🌿capacity|📍3|#7b1e]</div>Bit capacity per 1024×1024?</div><div class="msg c">~147K bits → ~240 reliable bits after ECC.</div></div></div>
+  <div class="rshelf"><div class="sh">ARTIFACTS</div><div class="clan" style="border-left:2px solid var(--accent)"><span>⚙</span> Blue: "verified" <span class="meta">d=8</span></div><div class="clan" style="border-left:2px solid var(--warn)"><span>📎</span> freq_encoder.rs <span class="meta">→A</span></div></div>
+  <div class="stamp-bar">[OLO|🌿clan/encoding|📍4|⚡OPEN|🔒A●B●C●D●E◐F●G○|#a3f2|⏱0201]</div>
+  <div class="bottom">
+    <div class="bhead"><span class="zbtn on">⌨ KB</span><span class="zbtn">📦 ART</span><span class="zbtn">⚙ TERM</span><span style="flex:1"></span><span class="zbtn" style="border-color:var(--accent);color:var(--accent)">A FOCUS</span><span class="zbtn" style="color:var(--process);opacity:0.4">B PROC</span></div>
+    <div class="keys">
+      <div class="kr"><div class="k g yes">A●</div><div class="k g yes">B●</div><div class="k g yes">C●</div><div class="k g yes">D●</div><div class="k g open">E◐</div><div class="k g yes">F●</div><div class="k g open">G○</div><div style="width:10px"></div><div class="k act" style="border-color:var(--accent);color:var(--accent)">⚡OPEN</div><div class="k act">⚡GATE</div><div class="k act">⚡DONE</div></div>
+      <div class="kr"><div class="k">q</div><div class="k">w</div><div class="k">e</div><div class="k">r</div><div class="k">t</div><div class="k">y</div><div class="k">u</div><div class="k">i</div><div class="k">o</div><div class="k">p</div></div>
+      <div class="kr"><div class="k">a</div><div class="k">s</div><div class="k">d</div><div class="k">f</div><div class="k">g</div><div class="k">h</div><div class="k">j</div><div class="k">k</div><div class="k">l</div></div>
+      <div class="kr"><div class="k">z</div><div class="k">x</div><div class="k">c</div><div class="k">v</div><div class="k">b</div><div class="k">n</div><div class="k">m</div></div>
+      <div class="kr"><div class="k act">◆ SAVE</div><div class="k act">🌿 FORK</div><div class="k act" style="border-color:var(--warn);color:var(--warn)">⭐ COLLAPSE</div><div class="k act" style="border-color:var(--accent);color:var(--accent)">A</div><div class="k sp"></div><div class="k act" style="border-color:var(--process);color:var(--process);opacity:0.4">B</div><div class="k act" style="border-color:#c77dff;color:#c77dff">⚙ CODE</div><div class="k act">📌 PIN</div></div>
+    </div>
+  </div>
+</div>
+</body></html>`;
+
+FACTORY['tokens.css'] = `:root {
+  --bg:       #08080c;
+  --shelf:    #0c0c12;
+  --panel:    #0e0e16;
+  --surface:  #12121c;
+  --border:   #1a1a2e;
+  --text:     #e0e0e8;
+  --muted:    #9999aa;
+  --dim:      #666680;
+  --accent:   #00e5a0;
+  --process:  #4d9fff;
+  --warn:     #ffd93d;
+  --shelf-w:  220px;
+  --bottom-h: 200px;
+}`;
+
+FACTORY['main.js'] = `// main.js — read-only reference in workbench
+// Edit shell.html and tokens.css for visual changes
+const { app, BrowserWindow } = require('electron');
+// ... (see full source in project)`;
+
+// Init working copies from factory
+Object.keys(FACTORY).forEach(k => { files[k] = FACTORY[k]; });
+
+
+/*
+  ═══════════════════════════════════════════════════════════
+  LAYER 1: IFRAME SANDBOX
+  ═══════════════════════════════════════════════════════════
+  The iframe has sandbox="allow-scripts" ONLY.
+  No allow-same-origin → can't access parent window.
+  No allow-forms → can't submit anything.
+  No allow-popups → can't open new windows.
+  No allow-top-navigation → can't redirect parent.
+  Set in HTML attribute on the iframe element.
+*/
+
+
+/*
+  ═══════════════════════════════════════════════════════════
+  LAYER 2: VALIDATION GATE
+  ═══════════════════════════════════════════════════════════
+*/
+const HARDLOCK = { enabled: true };
+
+const Validator = {
+  errors: [],
+  warnings: [],
+
+  validate(html, fileType) {
+    this.errors = [];
+    this.warnings = [];
+
+    if (!HARDLOCK.enabled) return { ok: true, errors: [], warnings: [] };
+
+    if (fileType === 'html') {
+      this.checkHTMLParse(html);
+      this.checkDangerousPatterns(html);
+      this.checkInfiniteLoops(html);
+      this.checkStructuralIntegrity(html);
+      this.checkRequiredElements(html);
+    }
+
+    if (fileType === 'css') {
+      this.checkCSSParse(html);
+      this.checkCSSDestructive(html);
+    }
+
+    return {
+      ok: this.errors.length === 0,
+      errors: [...this.errors],
+      warnings: [...this.warnings],
+    };
+  },
+
+  // 2a: HTML must parse without errors
+  checkHTMLParse(html) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const errs = doc.querySelectorAll('parsererror');
+      if (errs.length > 0) {
+        this.errors.push({ msg: 'HTML parse error: malformed markup', line: 0 });
+      }
+    } catch (e) {
+      this.errors.push({ msg: `HTML parse exception: ${e.message}`, line: 0 });
+    }
+  },
+
+  // 2b: Dangerous JS patterns
+  checkDangerousPatterns(html) {
+    const dangerous = [
+      { rx: /while\s*\(\s*true\s*\)/g, msg: 'while(true) — infinite loop risk' },
+      { rx: /while\s*\(\s*1\s*\)/g, msg: 'while(1) — infinite loop risk' },
+      { rx: /for\s*\(\s*;\s*;\s*\)/g, msg: 'for(;;) — infinite loop risk' },
+      { rx: /window\.parent/g, msg: 'window.parent — sandbox escape attempt' },
+      { rx: /window\.top(?!\s*\.postMessage)/g, msg: 'window.top — sandbox escape attempt' },
+      { rx: /parent\.document/g, msg: 'parent.document — sandbox escape attempt' },
+      { rx: /document\.cookie/g, msg: 'document.cookie — no cookies in sandbox' },
+      { rx: /localStorage/g, msg: 'localStorage — not available in sandbox' },
+      { rx: /eval\s*\(/g, msg: 'eval() — dynamic code execution blocked' },
+      { rx: /new\s+Function\s*\(/g, msg: 'new Function() — dynamic code blocked' },
+      { rx: /window\.open\s*\(/g, msg: 'window.open — popups blocked by sandbox' },
+      { rx: /location\s*\.\s*href\s*=/g, msg: 'location.href — navigation blocked' },
+      { rx: /location\s*\.\s*replace\s*\(/g, msg: 'location.replace — navigation blocked' },
+      { rx: /fetch\s*\(/g, msg: 'fetch() — network access from preview', level: 'warn' },
+      { rx: /XMLHttpRequest/g, msg: 'XMLHttpRequest — network access', level: 'warn' },
+    ];
+
+    dangerous.forEach(({ rx, msg, level }) => {
+      const match = rx.exec(html);
+      if (match) {
+        const before = html.substring(0, match.index);
+        const line = before.split('\n').length;
+        if (level === 'warn') {
+          this.warnings.push({ msg, line });
+        } else {
+          this.errors.push({ msg, line });
+        }
+      }
+    });
+  },
+
+  // 2c: Detect likely infinite loops in script blocks
+  checkInfiniteLoops(html) {
+    const scriptRx = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+    let match;
+    while ((match = scriptRx.exec(html)) !== null) {
+      const script = match[1];
+      // Count loops without obvious break/return/await
+      const loopRx = /(?:while|for)\s*\([^)]*\)\s*\{([^}]{0,500})\}/g;
+      let loopMatch;
+      while ((loopMatch = loopRx.exec(script)) !== null) {
+        const body = loopMatch[1];
+        if (!body.includes('break') && !body.includes('return') && !body.includes('await') && !body.includes('setTimeout') && body.length < 20) {
+          const before = html.substring(0, match.index + loopMatch.index);
+          const line = before.split('\n').length;
+          this.warnings.push({ msg: 'Tight loop without break/return — may freeze preview', line });
+        }
+      }
+    }
+  },
+
+  // 2d: Required elements must exist
+  checkRequiredElements(html) {
+    const required = [
+      { selector: '.shell', msg: 'Missing .shell container — layout will break' },
+    ];
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    required.forEach(({ selector, msg }) => {
+      if (!doc.querySelector(selector)) {
+        this.errors.push({ msg, line: 0 });
+      }
+    });
+  },
+
+  // 2e: Structural integrity — grid must not be destroyed
+  checkStructuralIntegrity(html) {
+    // Check for CSS that would hide everything
+    const hidePatterns = [
+      /body\s*\{[^}]*display\s*:\s*none/i,
+      /html\s*\{[^}]*display\s*:\s*none/i,
+      /\.shell\s*\{[^}]*display\s*:\s*none/i,
+      /body\s*\{[^}]*visibility\s*:\s*hidden/i,
+      /body\s*\{[^}]*opacity\s*:\s*0[^.0-9]/i,
+    ];
+    hidePatterns.forEach(rx => {
+      if (rx.test(html)) {
+        const match = html.match(rx);
+        const line = html.substring(0, html.indexOf(match[0])).split('\n').length;
+        this.errors.push({ msg: 'Destructive CSS — would hide the entire shell', line });
+      }
+    });
+  },
+
+  // 2f: CSS-only validation
+  checkCSSParse(css) {
+    // Basic bracket balance check
+    let depth = 0;
+    for (const ch of css) {
+      if (ch === '{') depth++;
+      if (ch === '}') depth--;
+      if (depth < 0) {
+        this.errors.push({ msg: 'Unmatched closing brace }', line: 0 });
+        return;
+      }
+    }
+    if (depth !== 0) {
+      this.errors.push({ msg: `Unmatched braces: ${depth} unclosed {`, line: 0 });
+    }
+  },
+
+  checkCSSDestructive(css) {
+    if (/display\s*:\s*none/.test(css) || /visibility\s*:\s*hidden/.test(css)) {
+      this.warnings.push({ msg: 'display:none or visibility:hidden in tokens — may hide elements', line: 0 });
+    }
+  },
+};
+
+/*
+  ═══════════════════════════════════════════════════════════
+  LAYER 3: SNAPSHOT + ROLLBACK
+  ═══════════════════════════════════════════════════════════
+*/
+const snapshots = [];
+let lastGoodHTML = '';
+
+function takeSnapshot(label) {
+  const snap = {
+    id: snapshots.length,
+    label: label || `Snapshot #${snapshots.length}`,
+    ts: new Date().toISOString(),
+    files: {},
+  };
+  Object.keys(files).forEach(k => { snap.files[k] = files[k]; });
+  snapshots.push(snap);
+  updateSnapshotUI();
+  return snap;
+}
+
+function restoreSnapshot(idx) {
+  const snap = snapshots[idx];
+  if (!snap) return;
+  Object.keys(snap.files).forEach(k => { files[k] = snap.files[k]; });
+  openFile(currentFile);
+  applyToPreview();
+  setStatus('live', `Restored snapshot: ${snap.label}`);
+}
+
+function rollbackToGood() {
+  if (lastGoodHTML) {
+    const frame = document.getElementById('preview-frame');
+    frame.srcdoc = lastGoodHTML;
+    document.getElementById('crash-overlay').classList.remove('visible');
+    setStatus('live', 'Rolled back to last good');
+  }
+}
+
+function factoryReset() {
+  if (!confirm('Reset all files to factory defaults? Current work will be lost unless snapshots exist.')) return;
+  takeSnapshot('Pre-reset backup');
+  Object.keys(FACTORY).forEach(k => { files[k] = FACTORY[k]; });
+  openFile(currentFile);
+  applyToPreview();
+  setStatus('live', 'Factory reset complete');
+}
+
+function updateSnapshotUI() {
+  document.getElementById('status-snaps').textContent = `📸 ${snapshots.length} snapshots`;
+  const drawer = document.getElementById('snapshot-drawer');
+  drawer.innerHTML = snapshots.map((s, i) => `
+    <div class="snap-item ${i === snapshots.length - 1 ? 'current' : ''}" onclick="restoreSnapshot(${i})">
+      <span class="snap-time">${s.ts.slice(11, 19)}</span>
+      <span class="snap-label">${s.label}</span>
+    </div>
+  `).reverse().join('');
+}
+
+function toggleSnapshots() {
+  document.getElementById('snapshot-drawer').classList.toggle('visible');
+}
+
+/*
+  ═══════════════════════════════════════════════════════════
+  LAYER 4: WATCHDOG
+  ═══════════════════════════════════════════════════════════
+*/
+let watchdogTimer = null;
+let lastPong = Date.now();
+let watchdogInterval = null;
+
+function startWatchdog() {
+  if (watchdogInterval) clearInterval(watchdogInterval);
+  lastPong = Date.now();
+
+  watchdogInterval = setInterval(() => {
+    const frame = document.getElementById('preview-frame');
+    if (!frame.contentWindow) return;
+
+    // Ping
+    try {
+      frame.contentWindow.postMessage({ type: 'gently-ping' }, '*');
+    } catch (e) { /* sandbox may block */ }
+
+    // Check timeout
+    const elapsed = Date.now() - lastPong;
+    if (elapsed > 4000) {
+      document.getElementById('status-watchdog').textContent = '♥ Watchdog: DEAD';
+      document.getElementById('status-watchdog').className = 'status-item status-error';
+      document.getElementById('preview-dot').style.background = 'var(--red)';
+      showCrash('Preview stopped responding (no heartbeat for 4s)');
+    } else if (elapsed > 2000) {
+      document.getElementById('status-watchdog').textContent = '♥ Watchdog: Slow';
+      document.getElementById('status-watchdog').className = 'status-item status-warn';
+    } else {
+      document.getElementById('status-watchdog').textContent = '♥ Watchdog: OK';
+      document.getElementById('status-watchdog').className = 'status-item';
+    }
+  }, 2000);
+}
+
+// Listen for pongs
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'gently-pong') {
+    lastPong = Date.now();
+  }
+});
+
+function showCrash(msg) {
+  document.getElementById('crash-msg').textContent = msg;
+  document.getElementById('crash-overlay').classList.add('visible');
+}
+
+/*
+  ═══════════════════════════════════════════════════════════
+  LAYER 5: STRUCTURAL LOCKS
+  ═══════════════════════════════════════════════════════════
+  CSS token overrides are injected AFTER the main stylesheet.
+  They can only override variables, not delete rules.
+  The heartbeat script is always appended to ensure watchdog works.
+*/
+
+function buildSafeHTML() {
+  let html = files['shell.html'];
+
+  // Inject token overrides (CSS variables only — APPEND, never replace)
+  if (files['tokens.css']) {
+    const tokenBlock = `\n<style id="gently-token-override">\n${files['tokens.css']}\n</style>`;
+    // Insert before </head> so it comes AFTER the main styles
+    if (html.includes('</head>')) {
+      html = html.replace('</head>', tokenBlock + '\n</head>');
+    } else {
+      html += tokenBlock;
+    }
+  }
+
+  // Ensure heartbeat script exists (for watchdog)
+  if (!html.includes('gently-ping')) {
+    const heartbeat = `
+<script>
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'gently-ping') {
+    e.source.postMessage({ type: 'gently-pong', ts: Date.now() }, '*');
+  }
+});
+<\/script>`;
+    if (html.includes('</body>')) {
+      html = html.replace('</body>', heartbeat + '\n</body>');
+    } else {
+      html += heartbeat;
+    }
+  }
+
+  return html;
+}
+
+
+/*
+  ═══════════════════════════════════════════════════════════
+  EDITOR + PREVIEW INTEGRATION
+  ═══════════════════════════════════════════════════════════
+*/
+let currentFile = 'shell.html';
+let hotReload = true;
+let reloadTimer = null;
+
+const editor = document.getElementById('code-editor');
+const lineNums = document.getElementById('line-numbers');
+
+function openFile(name) {
+  currentFile = name;
+  document.querySelectorAll('.ed-tab').forEach(t => t.classList.toggle('active', t.dataset.file === name));
+  document.getElementById('bread-file').textContent = name;
+  editor.value = files[name] || '';
+  updateLineNumbers();
+  document.getElementById('status-file').textContent = name;
+  const langs = { 'shell.html':'HTML', 'main.js':'JavaScript', 'tokens.css':'CSS' };
+  document.getElementById('status-lang').textContent = langs[name] || 'Text';
+  // Clear validation
+  showValidation({ ok: true, errors: [], warnings: [] });
+}
+
+function updateLineNumbers() {
+  const lines = editor.value.split('\n').length;
+  let html = '';
+  for (let i = 1; i <= lines; i++) html += `<div class="line-num">${i}</div>`;
+  lineNums.innerHTML = html;
+}
+
+function showValidation(result) {
+  const bar = document.getElementById('validation-bar');
+  const icon = document.getElementById('val-icon');
+  const msg = document.getElementById('val-msg');
+  const count = document.getElementById('val-count');
+
+  if (result.errors.length > 0) {
+    bar.className = 'validation-bar error';
+    icon.textContent = '✕';
+    msg.className = 'val-msg error';
+    msg.textContent = result.errors[0].msg;
+    count.textContent = `${result.errors.length} error${result.errors.length > 1 ? 's' : ''} · ${result.warnings.length} warning${result.warnings.length !== 1 ? 's' : ''}`;
+
+    // Mark error lines
+    document.querySelectorAll('.line-num').forEach(el => el.classList.remove('error-line'));
+    result.errors.forEach(e => {
+      if (e.line > 0) {
+        const lineEl = lineNums.children[e.line - 1];
+        if (lineEl) lineEl.classList.add('error-line');
+      }
+    });
+  } else if (result.warnings.length > 0) {
+    bar.className = 'validation-bar';
+    icon.textContent = '⚠';
+    msg.className = 'val-msg';
+    msg.style.color = 'var(--orange)';
+    msg.textContent = result.warnings[0].msg;
+    count.textContent = `0 errors · ${result.warnings.length} warning${result.warnings.length !== 1 ? 's' : ''}`;
+  } else {
+    bar.className = 'validation-bar';
+    icon.textContent = '✓';
+    msg.className = 'val-msg ok';
+    msg.textContent = 'All checks passed';
+    count.textContent = '0 errors · 0 warnings';
+  }
+}
+
+function applyToPreview() {
+  // Determine file type
+  const fileType = currentFile.endsWith('.css') ? 'css' : 'html';
+
+  // VALIDATE (Layer 2)
+  const htmlToValidate = fileType === 'css' ? files['tokens.css'] : files['shell.html'];
+  const result = Validator.validate(htmlToValidate, fileType);
+  showValidation(result);
+
+  // GATE: reject if errors
+  if (!result.ok) {
+    setStatus('stale', `Blocked: ${result.errors[0].msg}`);
+    return; // ← HARDLOCK: preview stays on last good state
+  }
+
+  // Build safe HTML (Layer 5: structural locks)
+  const safeHTML = buildSafeHTML();
+
+  // SNAPSHOT current good state before replacing (Layer 3)
+  if (lastGoodHTML && lastGoodHTML !== safeHTML) {
+    // Auto-snapshot every 30 successful changes
+    if (snapshots.length === 0 || (Date.now() - new Date(snapshots[snapshots.length - 1].ts).getTime()) > 30000) {
+      takeSnapshot('Auto');
+    }
+  }
+
+  // INJECT into iframe
+  const frame = document.getElementById('preview-frame');
+  frame.srcdoc = safeHTML;
+  lastGoodHTML = safeHTML;
+
+  // Reset watchdog (Layer 4)
+  lastPong = Date.now();
+  document.getElementById('crash-overlay').classList.remove('visible');
+  document.getElementById('preview-dot').style.background = 'var(--accent)';
+
+  setStatus('live', 'Live');
+}
+
+function reloadPreview() {
+  applyToPreview();
+}
+
+function setStatus(state, msg) {
+  document.getElementById('status-dot').className = `status-dot ${state}`;
+  document.getElementById('status-sync').textContent = msg;
+}
+
+// Editor input
+editor.addEventListener('input', () => {
+  files[currentFile] = editor.value;
+  updateLineNumbers();
+
+  if (hotReload) {
+    clearTimeout(reloadTimer);
+    setStatus('validating', 'Validating...');
+    reloadTimer = setTimeout(applyToPreview, 400);
+  }
+});
+
+editor.addEventListener('scroll', () => { lineNums.scrollTop = editor.scrollTop; });
+
+editor.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = editor.selectionStart, end = editor.selectionEnd;
+    editor.value = editor.value.substring(0, s) + '  ' + editor.value.substring(end);
+    editor.selectionStart = editor.selectionEnd = s + 2;
+    editor.dispatchEvent(new Event('input'));
+  }
+  if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    takeSnapshot('Manual save');
+    applyToPreview();
+  }
+});
+
+editor.addEventListener('click', updateCursor);
+editor.addEventListener('keyup', updateCursor);
+function updateCursor() {
+  const val = editor.value.substring(0, editor.selectionStart);
+  const ln = val.split('\n').length, col = val.split('\n').pop().length + 1;
+  document.getElementById('status-cursor').textContent = `Ln ${ln}, Col ${col}`;
+}
+
+// Toggle hardlock
+function toggleLock() {
+  HARDLOCK.enabled = !HARDLOCK.enabled;
+  const btn = document.getElementById('lock-btn');
+  btn.textContent = HARDLOCK.enabled ? '🔒 HARDLOCK ON' : '🔓 HARDLOCK OFF';
+  btn.className = HARDLOCK.enabled ? 'top-btn locked' : 'top-btn warn';
+  document.getElementById('status-lock').textContent = HARDLOCK.enabled ? '🔒 Hardlocked' : '🔓 Unlocked';
+  document.getElementById('status-lock').className = HARDLOCK.enabled ? 'status-item status-accent' : 'status-item status-warn';
+  if (HARDLOCK.enabled) applyToPreview(); // Re-validate
+}
+
+function toggleHot() {
+  hotReload = !hotReload;
+  document.getElementById('hot-btn').classList.toggle('active', hotReload);
+}
+
+function setLayout(mode) {
+  const p = document.getElementById('preview-pane');
+  const e = document.getElementById('editor-pane');
+  const h = document.getElementById('split-handle');
+  p.style.display = mode === 'editor' ? 'none' : 'flex';
+  e.style.display = mode === 'preview' ? 'none' : 'flex';
+  h.style.display = mode === 'split' ? 'block' : 'none';
+}
+
+// Split resize
+const splitHandle = document.getElementById('split-handle');
+let isSplitting = false;
+splitHandle.addEventListener('mousedown', (e) => { isSplitting = true; splitHandle.classList.add('dragging'); document.body.style.cursor = 'col-resize'; e.preventDefault(); });
+document.addEventListener('mousemove', (e) => {
+  if (!isSplitting) return;
+  const rect = document.getElementById('split-view').getBoundingClientRect();
+  const r = Math.max(0.2, Math.min(0.8, (e.clientX - rect.left) / rect.width));
+  document.getElementById('preview-pane').style.flex = r;
+  document.getElementById('editor-pane').style.flex = 1 - r;
+});
+document.addEventListener('mouseup', () => { if (isSplitting) { isSplitting = false; splitHandle.classList.remove('dragging'); document.body.style.cursor = ''; }});
+
+/*
+  ═══════════════════════════════════════════════════════════
+  INIT
+  ═══════════════════════════════════════════════════════════
+*/
+openFile('shell.html');
+takeSnapshot('Factory default');
+applyToPreview();
+startWatchdog();
+setLayout('split');
+</script>
+</body>
+</html>

@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OLO PROTON SHELL</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Fork type colors — each fork reason has its own identity */
+  --fork-explore: #00e5a0;    /* Teal-green: going deeper */
+  --fork-pivot: #ff6b35;      /* Orange: changing direction */
+  --fork-refine: #4d9fff;     /* Blue: tightening focus */
+  --fork-challenge: #ff3d71;  /* Red: testing opposite */
+  --fork-merge: #c77dff;      /* Purple: combining branches */
+  --fork-checkpoint: #ffd93d; /* Yellow: save point */
+  --fork-dead: #555;          /* Grey: abandoned */
+
+  /* Core palette */
+  --bg-void: #08080c;
+  --bg-shelf: #0c0c12;
+  --bg-panel: #0e0e16;
+  --bg-surface: #12121c;
+  --bg-elevated: #18182a;
+  --border: #1a1a2e;
+  --border-active: #2a2a4e;
+  --text-primary: #e0e0e8;
+  --text-muted: #666680;
+  --text-dim: #333348;
+
+  /* Active branch (changes dynamically) */
+  --active-color: var(--fork-explore);
+  --active-glow: rgba(0, 229, 160, 0.15);
+
+  --shelf-width: 280px;
+  --keyboard-height: 180px;
+  --stamp-height: 36px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-void);
+  font-family: 'DM Mono', monospace;
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ═══════════════════════════════════════════
+   MASTER LAYOUT
+   ═══════════════════════════════════════════ */
+.proton-shell {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 1fr var(--stamp-height) var(--keyboard-height);
+  height: 100vh;
+}
+
+/* ═══════════════════════════════════════════
+   LEFT SHELF — Projects + Fork Tree
+   ═══════════════════════════════════════════ */
+.shelf {
+  grid-row: 1 / -1;
+  width: var(--shelf-width);
+  background: var(--bg-shelf);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+  z-index: 10;
+}
+
+.shelf.collapsed {
+  width: 44px;
+}
+
+.shelf-header {
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  min-height: 48px;
+}
+
+.shelf-toggle {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: color 150ms;
+  flex-shrink: 0;
+}
+.shelf-toggle:hover { color: var(--active-color); }
+
+.shelf-title {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.shelf.collapsed .shelf-title,
+.shelf.collapsed .shelf-content,
+.shelf.collapsed .shelf-footer { display: none; }
+
+.shelf-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+/* ─── PROJECT BLOCKS ─── */
+.project {
+  margin: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  transition: border-color 200ms;
+}
+.project:hover { border-color: var(--border-active); }
+.project.active { border-color: color-mix(in srgb, var(--active-color) 40%, transparent); }
+
+.project-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  background: var(--bg-panel);
+  transition: background 150ms;
+}
+.project-header:hover { background: var(--bg-surface); }
+
+.project-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.project-name {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-count {
+  font-size: 9px;
+  color: var(--text-dim);
+  min-width: 16px;
+  text-align: right;
+}
+
+.project-chevron {
+  font-size: 10px;
+  color: var(--text-dim);
+  transition: transform 200ms;
+}
+.project.open .project-chevron { transform: rotate(90deg); }
+
+.project-tracks {
+  display: none;
+  padding: 4px 0 4px 6px;
+  background: var(--bg-void);
+}
+.project.open .project-tracks { display: block; }
+
+/* ─── TRACKS (accordion groups) ─── */
+.track {
+  margin: 2px 4px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.track-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: all 150ms;
+  border-radius: 4px;
+}
+.track-header:hover { background: var(--bg-surface); color: var(--text-primary); }
+
+.track-fork-icon {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.track-name {
+  flex: 1;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-badge {
+  font-size: 8px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+}
+
+.track-chats {
+  display: none;
+  padding: 2px 0 2px 14px;
+}
+.track.open .track-chats { display: block; }
+
+/* ─── CHAT ENTRIES (individual conversations) ─── */
+.chat-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--text-muted);
+  border-radius: 3px;
+  transition: all 150ms;
+  position: relative;
+}
+.chat-entry:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.chat-entry.active {
+  background: color-mix(in srgb, var(--active-color) 10%, var(--bg-void));
+  color: var(--active-color);
+}
+.chat-entry.reference {
+  background: color-mix(in srgb, var(--fork-refine) 8%, var(--bg-void));
+  color: var(--fork-refine);
+}
+
+.chat-chain-num {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 500;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+.chat-entry.active .chat-chain-num { background: var(--active-color); color: var(--bg-void); }
+
+.chat-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.chat-dot.focus { background: var(--active-color); box-shadow: 0 0 4px var(--active-color); }
+.chat-dot.ref { background: var(--fork-refine); }
+
+/* ─── FORK TYPE CONNECTOR ─── */
+.fork-connector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 20px;
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+.fork-line {
+  width: 12px;
+  height: 1px;
+  flex-shrink: 0;
+}
+
+.fork-type-label {
+  font-size: 7px;
+  letter-spacing: 1.5px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+/* ─── SHELF FOOTER ─── */
+.shelf-footer {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 9px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.shelf-footer .stat {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* ═══════════════════════════════════════════
+   MAIN CONTENT — Embedded Browser Area
+   ═══════════════════════════════════════════ */
+.main-area {
+  background: var(--bg-void);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Tab bar for the split */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  min-height: 36px;
+  gap: 2px;
+}
+
+.browser-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  transition: all 150ms;
+  position: relative;
+  max-width: 200px;
+}
+.browser-tab:hover { background: var(--bg-surface); color: var(--text-primary); }
+.browser-tab.active {
+  background: var(--bg-void);
+  color: var(--text-primary);
+}
+.browser-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--active-color);
+}
+
+.tab-color-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tab-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+}
+
+.tab-close {
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity 150ms;
+  cursor: pointer;
+  padding: 2px;
+}
+.browser-tab:hover .tab-close { opacity: 0.5; }
+.tab-close:hover { opacity: 1 !important; }
+
+.tab-bar-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.tab-action {
+  padding: 4px 8px;
+  font-size: 9px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 150ms;
+  letter-spacing: 1px;
+}
+.tab-action:hover { background: var(--bg-elevated); color: var(--text-muted); }
+
+/* Split content */
+.content-split {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+}
+
+.content-split.single { grid-template-columns: 1fr; }
+
+.embed-pane {
+  background: var(--bg-void);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.embed-pane-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-panel);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pane-label {
+  font-weight: 500;
+  letter-spacing: 2px;
+}
+
+.pane-url {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.embed-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+  overflow-y: auto;
+}
+
+/* Simulated Claude chat content */
+.sim-chat {
+  width: 100%;
+  max-width: 680px;
+}
+
+.sim-msg {
+  margin: 8px 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  font-family: 'Instrument Sans', sans-serif;
+}
+
+.sim-msg.user {
+  background: var(--bg-elevated);
+  margin-left: 40px;
+}
+
+.sim-msg.assistant {
+  background: var(--bg-surface);
+  border-left: 2px solid var(--active-color);
+  margin-right: 40px;
+}
+
+.sim-msg .stamp-inline {
+  display: block;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  padding: 4px 6px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+/* ═══════════════════════════════════════════
+   STAMP BAR — Between content and keyboard
+   ═══════════════════════════════════════════ */
+.stamp-bar {
+  grid-column: 2;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.stamp-display {
+  flex: 1;
+  font-size: 9px;
+  color: var(--active-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+  font-family: 'DM Mono', monospace;
+}
+
+.stamp-action {
+  padding: 3px 8px;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 150ms;
+  white-space: nowrap;
+}
+.stamp-action:hover {
+  border-color: var(--active-color);
+  color: var(--active-color);
+}
+
+/* ═══════════════════════════════════════════
+   KEYBOARD — Color-coded, togglable
+   ═══════════════════════════════════════════ */
+.keyboard-area {
+  grid-column: 2;
+  background: var(--bg-panel);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.keyboard-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 4px;
+}
+
+.mode-btn {
+  padding: 3px 10px;
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 200ms;
+  font-family: 'DM Mono', monospace;
+}
+.mode-btn.active {
+  border-color: var(--active-color);
+  color: var(--active-color);
+  background: color-mix(in srgb, var(--active-color) 8%, transparent);
+}
+.mode-btn:hover { border-color: var(--text-muted); }
+
+.mode-label {
+  font-size: 7px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  margin-left: auto;
+}
+
+.keyboard-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.key-row {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+}
+
+.key {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 120ms;
+  position: relative;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.key:hover {
+  background: var(--bg-elevated);
+  transform: translateY(-1px);
+}
+
+.key:active {
+  transform: translateY(1px);
+  background: var(--bg-panel);
+}
+
+.key.wide { min-width: 55px; font-size: 9px; letter-spacing: 1px; }
+.key.wider { min-width: 80px; font-size: 9px; }
+.key.space { flex: 1; max-width: 280px; }
+
+/* Key color indicator (bottom bar) */
+.key::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--key-color, transparent);
+  transition: background 200ms;
+}
+
+/* Gate keys (special) */
+.key.gate-key {
+  border-color: var(--key-color, var(--border));
+  font-size: 11px;
+}
+.key.gate-key .gate-state {
+  font-size: 8px;
+  position: absolute;
+  top: 2px;
+  right: 3px;
+}
+
+/* Fork type keys */
+.key.fork-key {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+}
+
+/* Action keys */
+.key.action-key {
+  background: color-mix(in srgb, var(--key-color, var(--active-color)) 12%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--key-color, var(--active-color)) 30%, var(--border));
+  font-size: 9px;
+}
+
+/* Session switch keys */
+.key.session-key {
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+/* ═══════════════════════════════════════════
+   FORK TYPE LEGEND (tooltip)
+   ═══════════════════════════════════════════ */
+.fork-legend {
+  position: fixed;
+  bottom: calc(var(--keyboard-height) + var(--stamp-height) + 10px);
+  right: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 9px;
+  z-index: 100;
+  display: none;
+  min-width: 200px;
+}
+.fork-legend.visible { display: block; }
+
+.fork-legend-title {
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.fork-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.fork-legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.fork-legend-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  width: 70px;
+}
+
+.fork-legend-desc {
+  color: var(--text-muted);
+  font-size: 8px;
+}
+
+/* ═══════════════════════════════════════════
+   SCROLLBAR
+   ═══════════════════════════════════════════ */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1a1a2e; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="proton-shell">
+
+  <!-- LEFT SHELF -->
+  <div class="shelf" id="shelf">
+    <div class="shelf-header">
+      <div class="shelf-toggle" id="shelf-toggle" onclick="toggleShelf()">&#9776;</div>
+      <div class="shelf-title">OLO PROTON</div>
+    </div>
+
+    <div class="shelf-content" id="shelf-content">
+      <!-- Populated by JS -->
+    </div>
+
+    <div class="shelf-footer">
+      <span class="stat" id="stat-chats">0 chats</span>
+      <span class="stat" id="stat-branches">0 branches</span>
+      <span class="stat" style="margin-left: auto;" id="stat-guard">&#9632; L3</span>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-area">
+    <div class="tab-bar" id="tab-bar">
+      <!-- Browser tabs -->
+    </div>
+
+    <div class="content-split" id="content-split">
+      <!-- Embed panes -->
+    </div>
+  </div>
+
+  <!-- STAMP BAR -->
+  <div class="stamp-bar">
+    <div class="stamp-display" id="stamp-display">[OLO|loading...]</div>
+    <div class="stamp-action" onclick="copyStamp()">&#128203; COPY</div>
+    <div class="stamp-action" onclick="showRehydrate()">&#9883; REHYDRATE</div>
+    <div class="stamp-action" onclick="toggleForkLegend()">&#9432; FORKS</div>
+  </div>
+
+  <!-- KEYBOARD -->
+  <div class="keyboard-area" id="keyboard-area">
+    <div class="keyboard-mode-bar">
+      <div class="mode-btn active" data-mode="branch" onclick="setKeyMode('branch')">BRANCH</div>
+      <div class="mode-btn" data-mode="gate" onclick="setKeyMode('gate')">GATE</div>
+      <div class="mode-btn" data-mode="depth" onclick="setKeyMode('depth')">DEPTH</div>
+      <div class="mode-btn" data-mode="fork" onclick="setKeyMode('fork')">FORK</div>
+      <div class="mode-label" id="mode-label">COLOR = BRANCH IDENTITY</div>
+    </div>
+    <div class="keyboard-rows" id="keyboard-rows">
+      <!-- Built by JS -->
+    </div>
+  </div>
+
+</div>
+
+<!-- Fork legend popup -->
+<div class="fork-legend" id="fork-legend">
+  <div class="fork-legend-title">FORK TYPES</div>
+  <div class="fork-legend-item">
+    <div class="fork-legend-color" style="background: var(--fork-explore)"></div>
+    <div class="fork-legend-name">EXPLORE</div>
+    <div class="fork-legend-desc">Going deeper on thread</div>
+  </div>
+  <div class="fork-legend-item">
+    <div class="fork-legend-color" style="background: var(--fork-pivot)"></div>
+    <div class="fork-legend-name">PIVOT</div>
+    <div class="fork-legend-desc">Changed direction</div>
+  </div>
+  <div class="fork-legend-item">
+    <div class="fork-legend-color" style="background: var(--fork-refine)"></div>
+    <div class="fork-legend-name">REFINE</div>
+    <div class="fork-legend-desc">Tightening focus</div>
+  </div>
+  <div class="fork-legend-item">
+    <div class="fork-legend-color" style="background: var(--fork-challenge)"></div>
+    <div class="fork-legend-name">CHALLENGE</div>
+    <div class="fork-legend-desc">Testing opposite</div>
+  </div>
+  <div class="fork-legend-item">
+    <div class="fork-legend-color" style="background: var(--fork-merge)"></div>
+    <div class="fork-legend-name">MERGE</div>
+    <div class="fork-legend-desc">Combining branches</div>
+  </div>
+  <div class="fork-legend-item">
+    <div class="fork-legend-color" style="background: var(--fork-checkpoint)"></div>
+    <div class="fork-legend-name">SAVE</div>
+    <div class="fork-legend-desc">Checkpoint, no fork</div>
+  </div>
+  <div class="fork-legend-item">
+    <div class="fork-legend-color" style="background: var(--fork-dead)"></div>
+    <div class="fork-legend-name">DEAD</div>
+    <div class="fork-legend-desc">Abandoned path</div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+// DATA MODEL
+// ════════════════════════════════════════════
+
+const FORK_TYPES = {
+  explore:    { icon: '\u2192', color: 'var(--fork-explore)',    label: 'EXPLORE',   desc: 'deeper' },
+  pivot:      { icon: '\u21BB', color: 'var(--fork-pivot)',      label: 'PIVOT',     desc: 'new direction' },
+  refine:     { icon: '\u25B7', color: 'var(--fork-refine)',     label: 'REFINE',    desc: 'tighter' },
+  challenge:  { icon: '\u2694', color: 'var(--fork-challenge)',  label: 'CHALLENGE', desc: 'opposite' },
+  merge:      { icon: '\u2727', color: 'var(--fork-merge)',      label: 'MERGE',     desc: 'combine' },
+  checkpoint: { icon: '\u25C6', color: 'var(--fork-checkpoint)', label: 'SAVE',      desc: 'checkpoint' },
+  dead:       { icon: '\u2715', color: 'var(--fork-dead)',       label: 'DEAD',      desc: 'abandoned' },
+};
+
+const GATE_SYMBOLS = { yes: '\u25CF', no: '\u2715', open: '\u25CB', half: '\u25D0', revisit: '\u21BA' };
+
+// Sample project data
+const projects = [
+  {
+    id: 'gentlyos',
+    name: 'GentlyOS Build',
+    color: '#00e5a0',
+    open: true,
+    tracks: [
+      {
+        id: 'core-arch',
+        name: 'Core Architecture',
+        forkType: 'explore',
+        open: true,
+        chats: [
+          { id: 'c1', name: 'Crate structure', depth: 12, status: 'done', chain: 1 },
+          { id: 'c2', name: 'WASM compilation', depth: 8, status: 'done', chain: 2 },
+          { id: 'c3', name: 'IPC bridge design', depth: 6, status: 'active', chain: 3 },
+        ],
+        forks: [
+          {
+            type: 'refine',
+            from: 'c2',
+            track: {
+              id: 'wasm-opt',
+              name: 'WASM Optimization',
+              forkType: 'refine',
+              open: false,
+              chats: [
+                { id: 'c4', name: 'Size reduction', depth: 4, status: 'done', chain: 1 },
+                { id: 'c5', name: 'SIMD paths', depth: 3, status: 'active', chain: 2 },
+              ]
+            }
+          }
+        ]
+      },
+      {
+        id: 'olo-guard',
+        name: 'OLO Guard',
+        forkType: 'explore',
+        open: false,
+        chats: [
+          { id: 'c6', name: 'Blue channel math', depth: 14, status: 'done', chain: 1 },
+          { id: 'c7', name: 'Gematria engine', depth: 9, status: 'done', chain: 2 },
+          { id: 'c8', name: 'Adversarial testing', depth: 5, status: 'active', chain: 3 },
+        ],
+        forks: [
+          {
+            type: 'challenge',
+            from: 'c6',
+            track: {
+              id: 'png-path',
+              name: 'PNG Alternative',
+              forkType: 'challenge',
+              open: false,
+              chats: [
+                { id: 'c9', name: 'PNG analysis', depth: 6, status: 'done', chain: 1 },
+              ]
+            }
+          },
+          {
+            type: 'pivot',
+            from: 'c8',
+            track: {
+              id: 'webp-path',
+              name: 'WebP Exploration',
+              forkType: 'pivot',
+              open: false,
+              chats: [
+                { id: 'c10', name: 'WebP testing', depth: 2, status: 'active', chain: 1 },
+              ]
+            }
+          }
+        ]
+      },
+      {
+        id: 'stamp-protocol',
+        name: 'Stamp Protocol',
+        forkType: 'explore',
+        open: false,
+        chats: [
+          { id: 'c11', name: 'Gate system design', depth: 7, status: 'active', chain: 1 },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'security',
+    name: 'Security Research',
+    color: '#ff3d71',
+    open: false,
+    tracks: [
+      {
+        id: 'uefi',
+        name: 'UEFI Analysis',
+        forkType: 'explore',
+        open: false,
+        chats: [
+          { id: 'c12', name: 'Rootkit signatures', depth: 18, status: 'done', chain: 1 },
+          { id: 'c13', name: 'Firmware extraction', depth: 11, status: 'done', chain: 2 },
+        ]
+      }
+    ]
+  }
+];
+
+// Active state
+let activeChat = 'c3';
+let referenceChat = 'c2';
+let activeGates = [
+  { letter: 'A', question: 'Blue channel for verification?', state: 'yes' },
+  { letter: 'B', question: 'JPEG as kill mechanism?', state: 'revisit' },
+  { letter: 'C', question: 'Temporal fragmentation?', state: 'no' },
+  { letter: 'D', question: 'Gematria visible or hidden?', state: 'open' },
+  { letter: 'E', question: 'Boustrophedon UX cost?', state: 'half' },
+];
+let keyMode = 'branch';
+let convState = 'OPEN';
+
+// ════════════════════════════════════════════
+// RENDER SHELF
+// ════════════════════════════════════════════
+
+function renderShelf() {
+  const el = document.getElementById('shelf-content');
+  let html = '';
+  let totalChats = 0;
+  let totalBranches = 0;
+
+  projects.forEach(proj => {
+    html += `<div class="project ${proj.open ? 'open' : ''} ${proj.id === 'gentlyos' ? 'active' : ''}" data-id="${proj.id}">`;
+    html += `<div class="project-header" onclick="toggleProject('${proj.id}')">`;
+    html += `<div class="project-dot" style="background: ${proj.color}"></div>`;
+    html += `<div class="project-name">${proj.name}</div>`;
+    const chatCount = countChats(proj);
+    totalChats += chatCount;
+    html += `<div class="project-count">${chatCount}</div>`;
+    html += `<div class="project-chevron">\u25B6</div>`;
+    html += `</div>`;
+    html += `<div class="project-tracks">`;
+
+    proj.tracks.forEach(track => {
+      html += renderTrack(track, proj.color, 0);
+      totalBranches++;
+      if (track.forks) {
+        track.forks.forEach(fork => {
+          totalBranches++;
+          html += renderForkConnector(fork);
+          html += renderTrack(fork.track, FORK_TYPES[fork.type].color, 1);
+        });
+      }
+    });
+
+    html += `</div></div>`;
+  });
+
+  el.innerHTML = html;
+  document.getElementById('stat-chats').textContent = `${totalChats} chats`;
+  document.getElementById('stat-branches').textContent = `${totalBranches} branches`;
+}
+
+function renderTrack(track, color, indent) {
+  const ft = FORK_TYPES[track.forkType];
+  let html = `<div class="track ${track.open ? 'open' : ''}" style="margin-left: ${indent * 8}px">`;
+  html += `<div class="track-header" onclick="toggleTrack(this)" style="--track-color: ${ft.color}">`;
+  html += `<span class="track-fork-icon" style="color: ${ft.color}">${ft.icon}</span>`;
+  html += `<span class="track-name">${track.name}</span>`;
+  html += `<span class="track-badge">${track.chats.length}</span>`;
+  html += `</div>`;
+  html += `<div class="track-chats">`;
+
+  track.chats.forEach(chat => {
+    const isActive = chat.id === activeChat;
+    const isRef = chat.id === referenceChat;
+    html += `<div class="chat-entry ${isActive ? 'active' : ''} ${isRef ? 'reference' : ''}" 
+                  onclick="selectChat('${chat.id}')" 
+                  ondblclick="focusChat('${chat.id}')"
+                  style="--active-color: ${ft.color}">`;
+    html += `<span class="chat-chain-num" style="${isActive ? `background: ${ft.color}` : ''}">${chat.chain}</span>`;
+    html += `<span class="chat-name">${chat.name}</span>`;
+    if (isActive) html += `<span class="chat-dot focus" style="background: ${ft.color}"></span>`;
+    else if (isRef) html += `<span class="chat-dot ref"></span>`;
+    html += `</div>`;
+  });
+
+  html += `</div></div>`;
+  return html;
+}
+
+function renderForkConnector(fork) {
+  const ft = FORK_TYPES[fork.type];
+  return `<div class="fork-connector">
+    <div class="fork-line" style="background: ${ft.color}"></div>
+    <span class="fork-type-label" style="color: ${ft.color}; background: color-mix(in srgb, ${ft.color} 12%, transparent)">${ft.icon} ${ft.label}</span>
+  </div>`;
+}
+
+function countChats(proj) {
+  let count = 0;
+  proj.tracks.forEach(t => {
+    count += t.chats.length;
+    if (t.forks) t.forks.forEach(f => count += f.track.chats.length);
+  });
+  return count;
+}
+
+// ════════════════════════════════════════════
+// RENDER MAIN CONTENT
+// ════════════════════════════════════════════
+
+function renderContent() {
+  // Tab bar
+  const tabBar = document.getElementById('tab-bar');
+  const activeInfo = findChat(activeChat);
+  const refInfo = findChat(referenceChat);
+
+  tabBar.innerHTML = `
+    <div class="browser-tab active">
+      <div class="tab-color-dot" style="background: ${activeInfo.color}"></div>
+      <div class="tab-title">${activeInfo.chat.name}</div>
+      <div class="tab-close">\u2715</div>
+    </div>
+    <div class="browser-tab">
+      <div class="tab-color-dot" style="background: ${refInfo.color}"></div>
+      <div class="tab-title">${refInfo.chat.name}</div>
+      <div class="tab-close">\u2715</div>
+    </div>
+    <div class="tab-bar-actions">
+      <div class="tab-action" onclick="addFork('explore')">+ EXPLORE</div>
+      <div class="tab-action" onclick="addFork('pivot')">+ PIVOT</div>
+      <div class="tab-action" onclick="addFork('challenge')">+ CHALLENGE</div>
+    </div>
+  `;
+
+  // Content panes
+  const split = document.getElementById('content-split');
+  const stamp = generateCompactStamp();
+
+  split.innerHTML = `
+    <div class="embed-pane">
+      <div class="embed-pane-header">
+        <span class="pane-label" style="color: ${activeInfo.color}">A FOCUS</span>
+        <span class="pane-url">claude.ai/chat/${activeChat}-uuid-here</span>
+      </div>
+      <div class="embed-content">
+        <div class="sim-chat">
+          <div class="sim-msg user">
+            <div class="stamp-inline">${stamp}</div>
+            Let's work on the IPC bridge between the WASM module and the Electron main process.
+          </div>
+          <div class="sim-msg assistant" style="border-left-color: ${activeInfo.color}">
+            For the IPC bridge, we need to handle three message types: file operations, CLI spawning, and vault access. The bridge abstraction layer detects its environment automatically...
+          </div>
+          <div class="sim-msg user">
+            <div class="stamp-inline">${generateCompactStamp(7)}</div>
+            What about the credential vault? It needs to live in WASM memory.
+          </div>
+          <div class="sim-msg assistant" style="border-left-color: ${activeInfo.color}">
+            The WASM linear memory is perfect for this. The credential vault uses AES-256-GCM encryption within the WASM module's address space. The JavaScript runtime cannot inspect WASM memory directly...
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="embed-pane">
+      <div class="embed-pane-header">
+        <span class="pane-label" style="color: var(--fork-refine)">B REFERENCE</span>
+        <span class="pane-url">claude.ai/chat/${referenceChat}-uuid-here</span>
+      </div>
+      <div class="embed-content">
+        <div class="sim-chat">
+          <div class="sim-msg user">
+            <div class="stamp-inline">[OLO|\U0001F33Fcore-arch/wasm|\U0001F4CD6/8|\u26A1DONE|\U0001F4CCwasm-compiled-sub-1mb]</div>
+            Can we get the WASM binary under 1MB?
+          </div>
+          <div class="sim-msg assistant" style="border-left-color: var(--fork-refine)">
+            With wasm-opt and tree-shaking, the OLO guard module compiles to 847KB. The gematria tables account for 120KB, transliteration maps 45KB, the rest is the encoder logic...
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Stamp display
+  document.getElementById('stamp-display').textContent = stamp;
+}
+
+function findChat(chatId) {
+  for (const proj of projects) {
+    for (const track of proj.tracks) {
+      for (const chat of track.chats) {
+        if (chat.id === chatId) {
+          return { chat, track, project: proj, color: FORK_TYPES[track.forkType].color };
+        }
+      }
+      if (track.forks) {
+        for (const fork of track.forks) {
+          for (const chat of fork.track.chats) {
+            if (chat.id === chatId) {
+              return { chat, track: fork.track, project: proj, color: FORK_TYPES[fork.type].color };
+            }
+          }
+        }
+      }
+    }
+  }
+  return { chat: { name: '?', depth: 0 }, track: { forkType: 'explore' }, project: projects[0], color: '#666' };
+}
+
+// ════════════════════════════════════════════
+// STAMP GENERATION
+// ════════════════════════════════════════════
+
+function generateCompactStamp(depth) {
+  const info = findChat(activeChat);
+  const d = depth || info.chat.depth;
+  const gateStr = activeGates.map(g => g.letter + GATE_SYMBOLS[g.state]).join('');
+  const ts = new Date().toISOString().slice(5, 16).replace('-', '').replace(':', '').replace('T', 'T');
+  return `[OLO|\u{1F33F}${info.track.id}|\u{1F4CD}${d}/${info.chat.depth}|\u26A1${convState}|\u{1F512}${gateStr}|\u{1F4CC}ipc-bridge-wasm|\u{2B06}core-arch@d4|\u23F1${ts}]`;
+}
+
+// ════════════════════════════════════════════
+// KEYBOARD RENDERING
+// ════════════════════════════════════════════
+
+function renderKeyboard() {
+  const rows = document.getElementById('keyboard-rows');
+  const info = findChat(activeChat);
+
+  // Row definitions
+  const r1 = ['q','w','e','r','t','y','u','i','o','p'];
+  const r2 = ['a','s','d','f','g','h','j','k','l'];
+  const r3 = ['z','x','c','v','b','n','m'];
+
+  function keyColor(char, idx, rowIdx) {
+    switch (keyMode) {
+      case 'branch':
+        return info.color;
+      case 'gate':
+        const gi = idx % activeGates.length;
+        const gs = activeGates[gi].state;
+        return gs === 'yes' ? 'var(--fork-explore)' : gs === 'no' ? 'var(--fork-challenge)' :
+               gs === 'half' ? 'var(--fork-checkpoint)' : gs === 'revisit' ? 'var(--fork-pivot)' : 'var(--text-dim)';
+      case 'depth':
+        const pct = (idx + rowIdx * 10) / 36;
+        return `hsl(${170 + pct * 160}, 70%, 50%)`;
+      case 'fork':
+        const types = Object.values(FORK_TYPES);
+        return types[(idx + rowIdx) % types.length].color;
+      default:
+        return info.color;
+    }
+  }
+
+  function renderRow(chars, rowIdx) {
+    return chars.map((c, i) => 
+      `<div class="key" style="--key-color: ${keyColor(c, i, rowIdx)}">${c}</div>`
+    ).join('');
+  }
+
+  // Gate row
+  const gateKeys = activeGates.map(g => 
+    `<div class="key gate-key" style="--key-color: ${
+      g.state === 'yes' ? 'var(--fork-explore)' : g.state === 'no' ? 'var(--fork-challenge)' :
+      g.state === 'half' ? 'var(--fork-checkpoint)' : g.state === 'revisit' ? 'var(--fork-pivot)' : 'var(--text-dim)'
+    }" onclick="cycleGate('${g.letter}')">${g.letter}<span class="gate-state">${GATE_SYMBOLS[g.state]}</span></div>`
+  ).join('');
+
+  // Fork type keys
+  const forkKeys = Object.entries(FORK_TYPES).slice(0, 5).map(([key, ft]) =>
+    `<div class="key fork-key" style="--key-color: ${ft.color}" onclick="setForkType('${key}')">${ft.icon} ${ft.label}</div>`
+  ).join('');
+
+  // State keys
+  const stateKeys = ['OPEN', 'GATE', 'DONE', 'FORK', 'HOLD'].map(s =>
+    `<div class="key action-key ${s === convState ? 'active' : ''}" style="--key-color: ${s === convState ? 'var(--active-color)' : 'var(--text-dim)'}" onclick="setState('${s}')">\u26A1${s}</div>`
+  ).join('');
+
+  rows.innerHTML = `
+    <div class="key-row">
+      ${gateKeys}
+      <div style="width: 8px"></div>
+      ${stateKeys}
+    </div>
+    <div class="key-row">
+      ${renderRow(r1, 0)}
+      <div class="key wide" style="--key-color: var(--fork-checkpoint)">DEL</div>
+    </div>
+    <div class="key-row">
+      <div class="key wide" style="--key-color: var(--text-dim)">TAB</div>
+      ${renderRow(r2, 1)}
+      <div class="key wide" style="--key-color: var(--active-color)">RET</div>
+    </div>
+    <div class="key-row">
+      <div class="key wider" style="--key-color: var(--text-dim)">SHIFT</div>
+      ${renderRow(r3, 2)}
+      <div class="key wider" style="--key-color: var(--text-dim)">SHIFT</div>
+    </div>
+    <div class="key-row">
+      <div class="key action-key" style="--key-color: var(--fork-checkpoint)" onclick="saveCheckpoint()">\u25C6 SAVE</div>
+      <div class="key action-key" style="--key-color: var(--fork-explore)" onclick="addFork('explore')">\u{1F33F} FORK</div>
+      <div class="key session-key" style="--key-color: ${findChat(activeChat).color}">A</div>
+      <div class="key space" style="--key-color: ${info.color}"></div>
+      <div class="key session-key" style="--key-color: ${findChat(referenceChat).color}">B</div>
+      <div class="key action-key" style="--key-color: var(--fork-merge)" onclick="">\u{1F4CC} PIN</div>
+      <div class="key action-key" style="--key-color: var(--fork-refine)" onclick="">\u{1F441} LOOK</div>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════════
+// INTERACTIONS
+// ════════════════════════════════════════════
+
+function toggleShelf() {
+  document.getElementById('shelf').classList.toggle('collapsed');
+}
+
+function toggleProject(id) {
+  const proj = projects.find(p => p.id === id);
+  if (proj) { proj.open = !proj.open; renderShelf(); }
+}
+
+function toggleTrack(el) {
+  el.parentElement.classList.toggle('open');
+}
+
+function selectChat(id) {
+  referenceChat = id;
+  renderShelf();
+  renderContent();
+  renderKeyboard();
+}
+
+function focusChat(id) {
+  const prev = activeChat;
+  activeChat = id;
+  referenceChat = prev;
+  updateActiveColor();
+  renderShelf();
+  renderContent();
+  renderKeyboard();
+}
+
+function updateActiveColor() {
+  const info = findChat(activeChat);
+  document.documentElement.style.setProperty('--active-color', info.color);
+}
+
+function cycleGate(letter) {
+  const gate = activeGates.find(g => g.letter === letter);
+  if (!gate) return;
+  const cycle = ['open', 'half', 'yes', 'no'];
+  const idx = cycle.indexOf(gate.state);
+  gate.state = cycle[(idx + 1) % cycle.length];
+  renderKeyboard();
+  renderContent();
+}
+
+function setState(s) {
+  convState = s;
+  renderKeyboard();
+  renderContent();
+}
+
+function setKeyMode(mode) {
+  keyMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  const labels = {
+    branch: 'COLOR = BRANCH IDENTITY',
+    gate: 'COLOR = GATE DECISIONS',
+    depth: 'COLOR = CONVERSATION DEPTH',
+    fork: 'COLOR = FORK TYPE',
+  };
+  document.getElementById('mode-label').textContent = labels[mode];
+  renderKeyboard();
+}
+
+function toggleForkLegend() {
+  document.getElementById('fork-legend').classList.toggle('visible');
+}
+
+function copyStamp() {
+  const stamp = generateCompactStamp();
+  navigator.clipboard?.writeText(stamp);
+  const el = document.querySelector('.stamp-action');
+  el.textContent = '\u2713 COPIED';
+  setTimeout(() => el.textContent = '\u{1F4CB} COPY', 1500);
+}
+
+function showRehydrate() {
+  alert('Rehydration block would open in a new tab for cold-starting a Claude session.');
+}
+
+function saveCheckpoint() {
+  alert('Checkpoint saved: profile folder copied + DOM saved + stamp recorded');
+}
+
+function addFork(type) {
+  alert(`Fork type: ${type.toUpperCase()}\nWould copy profile folder, open new Chromium instance, and create new branch in the tree.`);
+}
+
+// ════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════
+
+updateActiveColor();
+renderShelf();
+renderContent();
+renderKeyboard();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GentlyOS SDK — Workbench</title>
+<style>
+:root {
+  --bg:#08080c;--shelf:#0a0a10;--panel:#0e0e16;--surface:#12121c;--elevated:#18182a;
+  --border:#1a1a2e;--text:#e0e0e8;--muted:#9999aa;--dim:#666680;--vdim:#333348;
+  --focus:#00e5a0;--process:#4d9fff;--proton:#ff6b9d;--warn:#ffd93d;--code:#c77dff;
+  --dead:#ff4444;--feed:#4d9fff;--doc:#4ecdc4;--build:#ff6b9d;--anchor:#ff4444;
+  --chain:#ffa500;--cli:#00e5a0;--git:#c77dff;
+  --font:'SF Mono','JetBrains Mono','Fira Code',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;overflow:hidden;user-select:none}
+.i{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex-shrink:0}
+.i svg{width:11px;height:11px;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;stroke:currentColor}
+.i.lg svg{width:15px;height:15px}.i.xl svg{width:20px;height:20px}
+.glow{filter:drop-shadow(0 0 3px currentColor) drop-shadow(0 0 6px color-mix(in srgb,currentColor 30%,transparent))}
+
+/* GRID */
+.shell{display:grid;grid-template-columns:44px 1fr 44px;grid-template-rows:22px 28px 1fr 24px 44px;height:100vh}
+
+/* TOP: GENESIS ANCHOR BAR */
+.anchor-bar{grid-column:1/-1;background:color-mix(in srgb,var(--anchor) 3%,var(--panel));border-bottom:1px solid color-mix(in srgb,var(--anchor) 12%,var(--border));display:flex;align-items:center;padding:0 6px;gap:4px;font-size:7px}
+.anchor-lock{display:flex;align-items:center;gap:3px;padding:1px 6px;border-radius:3px;font-size:6px;letter-spacing:.5px;color:var(--anchor);border:1px solid color-mix(in srgb,var(--anchor) 20%,var(--border));background:color-mix(in srgb,var(--anchor) 4%,transparent)}
+.anchor-lock .i{color:var(--anchor)}
+.anchor-hash{font-size:6px;color:var(--dim);letter-spacing:.3px;padding:1px 4px;background:var(--surface);border:1px solid var(--border);border-radius:2px}
+.anchor-ver{color:var(--chain);font-size:6px;padding:1px 5px;border:1px solid color-mix(in srgb,var(--chain) 20%,var(--border));border-radius:2px;display:flex;align-items:center;gap:3px}
+.anch-spacer{flex:1}
+.anchor-nft{display:flex;align-items:center;gap:3px;padding:2px 6px;border-radius:3px;font-size:6px;letter-spacing:1px;color:var(--anchor);border:1px solid color-mix(in srgb,var(--anchor) 15%,var(--border))}
+.anchor-reboot{padding:2px 8px;border-radius:3px;font-size:6px;letter-spacing:.5px;cursor:pointer;border:1px solid color-mix(in srgb,var(--cli) 20%,var(--border));color:var(--cli);background:transparent;transition:all 150ms}
+.anchor-reboot:hover{background:color-mix(in srgb,var(--cli) 8%,transparent);box-shadow:0 0 8px color-mix(in srgb,var(--cli) 15%,transparent)}
+
+/* TAB BAR */
+.tab-bar{grid-column:1/-1;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:stretch;font-size:7px;overflow-x:auto}
+.tab{padding:0 12px;display:flex;align-items:center;gap:4px;cursor:pointer;border-right:1px solid var(--border);color:var(--dim);transition:all 100ms;white-space:nowrap;position:relative}
+.tab:hover{color:var(--muted);background:var(--surface)}
+.tab.on{color:var(--text);background:var(--surface)}
+.tab.on::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px}
+.tab.locked{cursor:default}
+.tab.locked .i{color:var(--anchor)}
+.tab.locked.on::after{background:var(--anchor)}
+.tab-projects.on::after{background:var(--focus)}
+.tab-files.on::after{background:var(--feed)}
+.tab-cli.on::after{background:var(--cli)}
+.tab-git.on::after{background:var(--git)}
+.tab-skills.on::after{background:var(--warn)}
+.tab-close{width:14px;height:14px;display:flex;align-items:center;justify-content:center;border-radius:2px;margin-left:4px;opacity:0;transition:opacity 100ms}
+.tab:hover .tab-close{opacity:.4}
+.tab-close:hover{opacity:1!important;background:var(--elevated)}
+
+/* LEFT SHELF */
+.shelf-l{grid-row:3/5;background:var(--shelf);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px}
+.rb{width:36px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:4px;color:var(--dim);transition:all 100ms;position:relative}
+.rb:hover{color:var(--text);background:var(--surface)}
+.rb.on{color:var(--focus)}.rb.on::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;background:currentColor;border-radius:1px;filter:drop-shadow(0 0 3px currentColor)}
+.shelf-div{width:24px;height:1px;background:var(--border);margin:3px 0}
+
+/* RIGHT SHELF */
+.shelf-r{grid-row:3/5;background:var(--shelf);border-left:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px}
+.shelf-r .rb.on::before{left:auto;right:0}
+
+/* MAIN */
+.main{display:flex;overflow:hidden}
+.paneA{display:flex;flex-direction:column;flex:1;min-width:0;border-right:1px solid var(--border)}
+.paneB{display:flex;flex-direction:column;flex:0;min-width:0;overflow:hidden;transition:flex 250ms,opacity 200ms;opacity:0}
+.paneB.open{flex:1;opacity:1}
+
+/* PANE HEADERS */
+.ph{display:flex;align-items:center;gap:4px;padding:0 8px;height:22px;font-size:7px;border-bottom:1px solid var(--border);flex-shrink:0}
+.ph-dot{width:5px;height:5px;border-radius:50%}
+.ph-label{font-weight:600;letter-spacing:1px}
+.ph-ctx{flex:1;text-align:center;color:var(--dim);font-size:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph-btn{padding:1px 5px;font-size:6px;border:1px solid var(--border);border-radius:2px;cursor:pointer;color:var(--dim);background:transparent}
+.ph-btn:hover{border-color:var(--muted);color:var(--muted)}
+
+/* CHAT */
+.chat{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.msg{max-width:88%;padding:7px 10px;border-radius:6px;font-size:9px;line-height:1.6;animation:fadeIn 180ms}
+@keyframes fadeIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.msg.u{background:var(--elevated);border:1px solid var(--border);color:var(--muted);align-self:flex-end}
+.msg.a{background:var(--surface);color:var(--text);align-self:flex-start}
+.msg-tag{font-size:5px;letter-spacing:1px;margin-bottom:2px;opacity:.5}
+.msg code{background:var(--bg);padding:1px 3px;border-radius:2px;font-size:8px;color:var(--cli)}
+.msg .key-ring{display:inline-flex;gap:2px;margin:0 2px;vertical-align:middle}
+.msg .kr-sym{font-size:7px;padding:0 3px;border-radius:2px;border:1px solid var(--border);background:var(--bg)}
+
+/* Chat input */
+.ci{display:flex;gap:4px;padding:6px 8px;border-top:1px solid var(--border);flex-shrink:0;align-items:center}
+.ci-field{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font:inherit;font-size:9px;outline:none}
+.ci-field:focus{border-color:var(--focus)}
+.ci-ctx{display:flex;gap:2px;padding:0 4px}
+.ci-chip{font-size:5px;padding:1px 4px;border:1px solid var(--border);border-radius:2px;color:var(--dim);display:flex;align-items:center;gap:2px}
+.ci-chip.auto{border-color:color-mix(in srgb,var(--cli) 25%,var(--border));color:var(--cli)}
+.ci-send{padding:4px 10px;font-size:7px;border:1px solid var(--focus);border-radius:4px;background:transparent;color:var(--focus);cursor:pointer}
+
+/* PROJECT NAV (pane B when on Projects tab) */
+.project-nav{flex:1;overflow-y:auto;padding:4px}
+.pn-section{margin-bottom:2px}
+.pn-label{font-size:5px;letter-spacing:2px;color:var(--vdim);padding:6px 8px 2px}
+.pn-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:3px;cursor:pointer;transition:all 80ms;margin:1px 0;font-size:9px;color:var(--muted)}
+.pn-item:hover{background:var(--surface);color:var(--text)}
+.pn-item.selected{background:color-mix(in srgb,var(--focus) 6%,var(--surface));color:var(--focus)}
+.pn-item.root{font-weight:500}
+.pn-item .i{flex-shrink:0}
+.pn-meta{margin-left:auto;font-size:6px;color:var(--dim);display:flex;gap:4px;align-items:center}
+.pn-dot{width:5px;height:5px;border-radius:50%}
+
+/* File items (draggable) */
+.file-item{display:flex;align-items:center;gap:5px;padding:4px 8px 4px 20px;border-radius:3px;cursor:grab;font-size:8px;color:var(--dim);transition:all 80ms;margin:1px 0}
+.file-item:hover{background:var(--surface);color:var(--muted)}
+.file-item.dragging{opacity:.4;background:var(--elevated)}
+.file-item:active{cursor:grabbing}
+.file-item .i{flex-shrink:0;width:10px;height:10px}
+.file-item .i svg{width:8px;height:8px}
+.file-drag-hint{font-size:5px;color:var(--vdim);padding:4px 20px;letter-spacing:.5px;line-height:1.5}
+
+/* CLI output view */
+.cli-view{flex:1;overflow-y:auto;padding:8px;font-size:8px;line-height:1.5;color:var(--dim);background:var(--bg)}
+.cli-line{margin:1px 0;font-family:var(--font)}
+.cli-line.cmd{color:var(--cli)}
+.cli-line.out{color:var(--dim)}
+.cli-line.ok{color:var(--focus)}
+.cli-line.err{color:var(--dead)}
+.cli-line.info{color:var(--feed)}
+.cli-line.chain{color:var(--chain)}
+.cli-cursor{display:inline-block;width:6px;height:10px;background:var(--cli);animation:blink 800ms infinite}
+@keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
+
+/* ANCHOR VIEW (locked tab) */
+.anchor-view{flex:1;overflow-y:auto;padding:12px;font-size:8px}
+.av-section{margin-bottom:16px}
+.av-label{font-size:6px;letter-spacing:2px;color:var(--anchor);margin-bottom:6px;display:flex;align-items:center;gap:4px}
+.av-code{background:var(--bg);border:1px solid color-mix(in srgb,var(--anchor) 10%,var(--border));border-radius:4px;padding:8px;font-size:7px;line-height:1.6;color:var(--dim);white-space:pre;overflow-x:auto;font-family:var(--font)}
+.av-field{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size:7px}
+.av-field-k{color:var(--dim)}.av-field-v{color:var(--text)}
+.av-field-v.locked{color:var(--anchor)}
+.av-warn{background:color-mix(in srgb,var(--anchor) 5%,var(--bg));border:1px solid color-mix(in srgb,var(--anchor) 15%,var(--border));border-radius:4px;padding:8px;font-size:7px;color:var(--anchor);line-height:1.6;display:flex;align-items:flex-start;gap:6px}
+
+/* STAMP */
+.stamp{grid-column:2;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 8px;gap:4px;font-size:7px;overflow:hidden}
+.stamp-text{flex:1;color:var(--cli);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* BOTTOM */
+.bottom{grid-column:1/-1;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 4px;gap:2px;overflow-x:auto}
+.start{width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:4px;border:1px solid color-mix(in srgb,var(--focus) 20%,var(--border));background:color-mix(in srgb,var(--focus) 3%,transparent);color:var(--focus);transition:all 200ms;flex-shrink:0;margin-right:2px}
+.start:hover{box-shadow:0 0 10px color-mix(in srgb,var(--focus) 20%,transparent)}
+.bot-div{width:1px;height:26px;background:var(--border);flex-shrink:0;margin:0 2px}
+.tb{display:flex;flex-direction:column;align-items:center;gap:1px;padding:3px 5px;border-radius:4px;cursor:pointer;min-width:36px;transition:all 100ms;border:1px solid transparent;flex-shrink:0}
+.tb:hover{background:var(--surface);border-color:var(--border)}
+.tb.on{background:color-mix(in srgb,var(--focus) 5%,var(--surface));border-color:color-mix(in srgb,var(--focus) 15%,var(--border))}
+.tb .i{width:16px;height:16px}.tb .i svg{width:12px;height:12px}
+.tb-name{font-size:5px;letter-spacing:.3px;color:var(--dim);white-space:nowrap}
+.tb.on .tb-name{color:var(--focus)}
+.bot-spacer{flex:1}
+.bot-status{font-size:6px;color:var(--dim);display:flex;gap:8px;align-items:center;margin-right:4px}
+.bot-status span{display:flex;align-items:center;gap:2px}
+
+::-webkit-scrollbar{width:3px;height:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-diamond" viewBox="0 0 24 24"><path d="M12 2L22 12L12 22L2 12Z"/></symbol>
+<symbol id="i-term" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 9l4 3-4 3"/><line x1="12" y1="15" x2="18" y2="15"/></symbol>
+<symbol id="i-git" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><line x1="6" y1="8" x2="6" y2="16"/><path d="M6 6c0 6 12 6 12 0"/></symbol>
+<symbol id="i-gpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><line x1="9" y1="2" x2="9" y2="5"/><line x1="15" y1="2" x2="15" y2="5"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/><line x1="2" y1="9" x2="5" y2="9"/><line x1="2" y1="15" x2="5" y2="15"/><line x1="19" y1="9" x2="22" y2="9"/><line x1="19" y1="15" x2="22" y2="15"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="5"/><line x1="12" y1="11" x2="21" y2="2"/><line x1="18" y1="2" x2="21" y2="5"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5.5-3.8 10.7-8 12-4.2-1.3-8-6.5-8-12V6l8-4z"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M15 4.5L18.5 8 13 14.5H9.5V11L15 4.5z"/><line x1="9" y1="15" x2="4" y2="20"/></symbol>
+<symbol id="i-fork" viewBox="0 0 24 24"><circle cx="12" cy="18" r="2"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 8v2a4 4 0 004 4h4a4 4 0 004-4V8"/><line x1="12" y1="14" x2="12" y2="16"/></symbol>
+<symbol id="i-edit" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+<symbol id="i-feed" viewBox="0 0 24 24"><path d="M4 11a9 9 0 019 9"/><path d="M4 4a16 16 0 0116 16"/><circle cx="5" cy="19" r="1"/></symbol>
+<symbol id="i-chain" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10"/><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+<symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><line x1="12" y1="22" x2="12" y2="8"/><path d="M5 12H2a10 10 0 0020 0h-3"/></symbol>
+<symbol id="i-pkg" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></symbol>
+<symbol id="i-bot" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="11"/><circle cx="8" cy="16" r="1"/><circle cx="16" cy="16" r="1"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+<symbol id="i-gh" viewBox="0 0 24 24"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></symbol>
+</defs></svg>
+
+<div class="shell" id="shell">
+
+  <!-- ═══ ANCHOR BAR ═══ -->
+  <div class="anchor-bar">
+    <div class="anchor-lock"><span class="i glow" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-anchor"/></svg></span> ANCHOR</div>
+    <div class="anchor-hash">0x7a3f9b2c...d1e4</div>
+    <div class="anchor-ver"><span class="i" style="width:8px;height:8px;color:var(--chain)"><svg style="width:6px;height:6px"><use href="#i-chain"/></svg></span> v1.0.0-alpha</div>
+    <div class="anchor-hash">ETH Mainnet · blk 19482031</div>
+    <div class="anch-spacer"></div>
+    <button class="anchor-reboot" onclick="triggerReboot()"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-refresh"/></svg></span> REBOOT → v1.0.0</button>
+    <div class="anchor-nft"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-lock"/></svg></span> NFT #1 · REVOCABLE</div>
+  </div>
+
+  <!-- ═══ TAB BAR ═══ -->
+  <div class="tab-bar" id="tabBar">
+    <div class="tab locked on" onclick="setTab('anchor')" id="tab-anchor">
+      <span class="i" style="width:10px;height:10px;color:var(--anchor)"><svg style="width:8px;height:8px"><use href="#i-anchor"/></svg></span>
+      <span style="color:var(--anchor)">Anchor</span>
+      <span class="i" style="width:8px;height:8px;color:var(--anchor)"><svg style="width:6px;height:6px"><use href="#i-lock"/></svg></span>
+    </div>
+    <div class="tab tab-projects" onclick="setTab('projects')" id="tab-projects">
+      <span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-folder"/></svg></span>
+      Projects
+    </div>
+    <div class="tab tab-files" onclick="setTab('files')" id="tab-files">
+      <span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-file"/></svg></span>
+      Files
+    </div>
+    <div class="tab tab-cli" onclick="setTab('cli')" id="tab-cli">
+      <span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-term"/></svg></span>
+      CLI Chain
+    </div>
+    <div class="tab tab-skills" onclick="setTab('skills')" id="tab-skills">
+      <span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-bot"/></svg></span>
+      Skills
+    </div>
+    <div class="tab tab-git" onclick="setTab('git')" id="tab-git">
+      <span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-gh"/></svg></span>
+      GitHub
+    </div>
+  </div>
+
+  <!-- ═══ LEFT SHELF ═══ -->
+  <div class="shelf-l">
+    <div class="rb on"><span class="i"><svg><use href="#i-folder"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-search"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-git"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-bot"/></svg></span></div>
+    <div class="shelf-div"></div>
+    <div class="rb"><span class="i"><svg><use href="#i-layers"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-gpu"/></svg></span></div>
+  </div>
+
+  <!-- ═══ MAIN ═══ -->
+  <div class="main">
+    <!-- PANE A: always Claude chat -->
+    <div class="paneA">
+      <div class="ph" style="background:color-mix(in srgb,var(--cli) 3%,var(--panel))">
+        <div class="ph-dot" style="background:var(--cli)"></div>
+        <span class="ph-label" style="color:var(--cli)">CLAUDE</span>
+        <span class="ph-ctx" id="chatCtx">SDK · gentlyos</span>
+        <span style="font-size:5px;color:var(--dim);letter-spacing:1px" id="keyRing">⟁ ◇ ⬡ ▽</span>
+      </div>
+      <div class="chat" id="chatBody"></div>
+      <div class="ci">
+        <div class="ci-ctx" id="ciCtx">
+          <span class="ci-chip auto"><span class="i" style="width:6px;height:6px"><svg style="width:5px;height:5px"><use href="#i-zap"/></svg></span> auto-ctx</span>
+          <span class="ci-chip">⟁◇⬡▽</span>
+        </div>
+        <input class="ci-field" placeholder="Ask Claude (context auto-injected)..." id="chatInput">
+        <button class="ci-send" onclick="sendMsg()">↑</button>
+      </div>
+    </div>
+
+    <!-- PANE B: scope-dependent -->
+    <div class="paneB open" id="paneB">
+      <div class="ph" id="paneBHead">
+        <div class="ph-dot" id="pBDot" style="background:var(--anchor)"></div>
+        <span class="ph-label" id="pBLabel" style="color:var(--anchor)">ANCHOR</span>
+        <span class="ph-ctx" id="pBCtx">smart contract · locked</span>
+        <button class="ph-btn" onclick="closePaneB()">✕</button>
+      </div>
+      <div class="paneB-body" id="paneBBody">
+
+        <!-- ANCHOR VIEW -->
+        <div class="scope-view active" id="v-anchor" style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+          <div class="anchor-view">
+            <div class="av-warn">
+              <span class="i" style="color:var(--anchor);flex-shrink:0;width:16px;height:16px"><svg style="width:14px;height:14px"><use href="#i-lock"/></svg></span>
+              <div><b>LOCKED</b> — This tab cannot be closed or modified after genesis. The smart contract anchor program is hardcoded to chain. Reboot boots into the version specified by the on-chain state.</div>
+            </div>
+            <div class="av-section" style="margin-top:12px">
+              <div class="av-label"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-anchor"/></svg></span> CONTRACT STATE</div>
+              <div class="av-field"><span class="av-field-k">Contract</span><span class="av-field-v locked">0x7a3f9b2c...d1e4</span></div>
+              <div class="av-field"><span class="av-field-k">NFT Token ID</span><span class="av-field-v locked">#1</span></div>
+              <div class="av-field"><span class="av-field-k">Owner</span><span class="av-field-v locked">0xTom...3090</span></div>
+              <div class="av-field"><span class="av-field-k">Version Locked</span><span class="av-field-v" style="color:var(--chain)">v1.0.0-alpha</span></div>
+              <div class="av-field"><span class="av-field-k">NixOS Flake Hash</span><span class="av-field-v">sha256:a3f2c1d8e9...</span></div>
+              <div class="av-field"><span class="av-field-k">Boot Target</span><span class="av-field-v" style="color:var(--cli)">gentlyos-v1.0.0-alpha</span></div>
+              <div class="av-field"><span class="av-field-k">Revocable</span><span class="av-field-v" style="color:var(--warn)">YES — owner can burn</span></div>
+            </div>
+            <div class="av-section">
+              <div class="av-label"><span class="i" style="width:10px;height:10px"><svg style="width:8px;height:8px"><use href="#i-code"/></svg></span> ANCHOR PROGRAM (read-only)</div>
+              <div class="av-code"><span style="color:var(--anchor)">// SPDX-License-Identifier: MIT</span>
+<span style="color:var(--anchor)">// GentlyOS Genesis Anchor</span>
+
+contract GentlyGenesis {
+  address public owner;
+  uint256 public tokenId;
+  string  public version;
+  bytes32 public flakeHash;
+  bool    public revoked;
+
+  <span style="color:var(--cli)">function bootTarget()</span> external view
+    returns (string memory) {
+    require(!revoked, <span style="color:var(--warn)">"REVOKED"</span>);
+    return string(abi.encodePacked(
+      "gentlyos-", version
+    ));
+  }
+
+  <span style="color:var(--anchor)">function revoke()</span> external {
+    require(msg.sender == owner);
+    revoked = true;
+    <span style="color:var(--dead)">// burns the NFT, OS won't boot</span>
+  }
+
+  <span style="color:var(--chain)">function upgrade(</span>
+    string memory newVersion,
+    bytes32 newFlakeHash
+  <span style="color:var(--chain)">)</span> external {
+    require(msg.sender == owner);
+    version = newVersion;
+    flakeHash = newFlakeHash;
+    <span style="color:var(--cli)">// next reboot targets new version</span>
+  }
+}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PROJECTS VIEW -->
+        <div class="scope-view" id="v-projects" style="display:none;flex-direction:column;height:100%;overflow:hidden">
+          <div class="project-nav" id="projectNav"></div>
+        </div>
+
+        <!-- FILES VIEW -->
+        <div class="scope-view" id="v-files" style="display:none;flex-direction:column;height:100%;overflow:hidden">
+          <div class="project-nav" id="fileNav"></div>
+        </div>
+
+        <!-- CLI VIEW -->
+        <div class="scope-view" id="v-cli" style="display:none;flex-direction:column;height:100%;overflow:hidden">
+          <div class="cli-view" id="cliView"></div>
+        </div>
+
+        <!-- SKILLS VIEW -->
+        <div class="scope-view" id="v-skills" style="display:none;flex-direction:column;height:100%;overflow:hidden">
+          <div class="project-nav" id="skillsNav"></div>
+        </div>
+
+        <!-- GIT VIEW -->
+        <div class="scope-view" id="v-git" style="display:none;flex-direction:column;height:100%;overflow:hidden">
+          <div class="project-nav" id="gitNav"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ RIGHT SHELF ═══ -->
+  <div class="shelf-r">
+    <div class="rb on"><span class="i"><svg><use href="#i-zap"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-pin"/></svg></span></div>
+    <div class="rb"><span class="i"><svg><use href="#i-feed"/></svg></span></div>
+    <div class="shelf-div"></div>
+    <div class="rb"><span class="i"><svg><use href="#i-shield"/></svg></span></div>
+  </div>
+
+  <!-- ═══ STAMP ═══ -->
+  <div class="stamp">
+    <span class="stamp-text" id="stampText">[SDK|🔑genesis|⚓v1.0.0-alpha|⟁◇⬡▽|#0x7a3f]</span>
+  </div>
+
+  <!-- ═══ BOTTOM ═══ -->
+  <div class="bottom">
+    <div class="start"><span class="i lg glow" style="color:var(--focus)"><svg><use href="#i-diamond"/></svg></span></div>
+    <div class="tb on"><span class="i" style="color:var(--focus)"><svg><use href="#i-diamond"/></svg></span><span class="tb-name" style="color:var(--focus)">Shell</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-term"/></svg></span><span class="tb-name">Term</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-git"/></svg></span><span class="tb-name">Git</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-gpu"/></svg></span><span class="tb-name">GPU</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-shield"/></svg></span><span class="tb-name">Vault</span></div>
+    <div class="bot-div"></div>
+    <div class="tb" id="tb-scope"><span class="i" style="color:var(--anchor)"><svg><use href="#i-anchor"/></svg></span><span class="tb-name" style="color:var(--anchor)">Anchor</span></div>
+    <div class="tb"><span class="i" style="color:var(--cli)"><svg><use href="#i-bot"/></svg></span><span class="tb-name">Claude</span></div>
+    <div class="tb"><span class="i"><svg><use href="#i-gh"/></svg></span><span class="tb-name">GitHub</span></div>
+    <div class="bot-spacer"></div>
+    <div class="bot-status">
+      <span style="color:var(--cli)"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-zap"/></svg></span> ctx: 4 keys</span>
+      <span><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-chain"/></svg></span> chain: ✓</span>
+      <span style="color:var(--focus)"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-refresh"/></svg></span> live</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const keySymbols = ['⟁','◇','⬡','▽','⊕','⊗','⬢','△','◈','⊙'];
+let currentKeys = ['⟁','◇','⬡','▽'];
+let currentTab = 'anchor';
+
+function rotateKeys() {
+  currentKeys = currentKeys.map(() => keySymbols[Math.floor(Math.random()*keySymbols.length)]);
+  document.getElementById('keyRing').textContent = currentKeys.join(' ');
+  document.querySelectorAll('.ci-chip')[1].textContent = currentKeys.join('');
+}
+
+const projects = [
+  { name:'gentlyos', type:'root', icon:'i-diamond', color:'--focus', github:'tomlee3d/gentlyos',
+    files: [
+      { name:'flake.nix', icon:'i-file', type:'nix' },
+      { name:'CLAUDE.md', icon:'i-bot', type:'md', special:true },
+      { name:'AGENTS.md', icon:'i-bot', type:'md', special:true },
+      { name:'.claude/', icon:'i-folder', type:'dir', children:['skills.md','context.json','prompts/'] },
+      { name:'crates/', icon:'i-folder', type:'dir', children:['gently-core/','gently-crypto/','gently-shell/','gently-net/','gently-fs/'] },
+      { name:'electron/', icon:'i-folder', type:'dir', children:['shell.html','main.js','workbench.html','proton.html'] },
+      { name:'scripts/', icon:'i-folder', type:'dir', children:['reset-cli.sh','chain-context.sh','boot-anchor.sh'] },
+      { name:'keys/', icon:'i-folder', type:'dir' },
+    ]},
+  { name:'gently-feed', type:'project', icon:'i-feed', color:'--feed', github:'tomlee3d/gently-feed',
+    files: [{ name:'feed-protocol.rs', icon:'i-file', type:'rs' },{ name:'chain.rs', icon:'i-file', type:'rs' }] },
+  { name:'gently-doc', type:'project', icon:'i-book', color:'--doc', github:'tomlee3d/gently-doc',
+    files: [{ name:'sovereignty-stack.md', icon:'i-file', type:'md' }] },
+];
+
+function setTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('tab-'+tab).classList.add('on');
+  document.querySelectorAll('.scope-view').forEach(v => { v.style.display = 'none'; v.classList.remove('active'); });
+  const view = document.getElementById('v-'+tab);
+  if (view) { view.style.display = 'flex'; view.classList.add('active'); }
+
+  const colors = { anchor:'--anchor', projects:'--focus', files:'--feed', cli:'--cli', skills:'--warn', git:'--git' };
+  const labels = { anchor:'ANCHOR', projects:'PROJECTS', files:'FILES', cli:'CLI CHAIN', skills:'SKILLS', git:'GITHUB' };
+  const ctxs = { anchor:'smart contract · locked', projects:'navigate · fork · create', files:'drag → chat · cat → Claude', cli:'rolling bash · context chain', skills:'claude agents · .md', git:'tomlee3d · repos' };
+  const c = getComputedStyle(document.documentElement).getPropertyValue(colors[tab]).trim();
+  document.getElementById('pBDot').style.background = c;
+  document.getElementById('pBLabel').style.color = c;
+  document.getElementById('pBLabel').textContent = labels[tab];
+  document.getElementById('pBCtx').textContent = ctxs[tab];
+
+  document.getElementById('paneB').classList.add('open');
+  if (tab === 'projects') renderProjects();
+  if (tab === 'files') renderFiles();
+  if (tab === 'cli') renderCLI();
+  if (tab === 'skills') renderSkills();
+  if (tab === 'git') renderGit();
+
+  rotateKeys();
+}
+
+function renderProjects() {
+  const nav = document.getElementById('projectNav');
+  nav.innerHTML = '<div class="pn-label">PROJECTS — double-click root to execute CLI chain</div>';
+  projects.forEach((p,i) => {
+    const c = getComputedStyle(document.documentElement).getPropertyValue(p.color).trim();
+    const item = document.createElement('div');
+    item.className = 'pn-item' + (p.type==='root'?' root selected':'');
+    item.innerHTML = `<span class="i" style="color:${c}"><svg><use href="#${p.icon}"/></svg></span>
+      <span style="${p.type==='root'?'color:'+c:''}">${p.name}</span>
+      <span class="pn-meta"><span class="i" style="width:8px;height:8px"><svg style="width:6px;height:6px"><use href="#i-gh"/></svg></span>${p.github}<span class="pn-dot" style="background:${c}"></span></span>`;
+    item.ondblclick = () => executeProjectChain(p);
+    item.onclick = () => { document.querySelectorAll('.pn-item').forEach(x=>x.classList.remove('selected')); item.classList.add('selected'); };
+    nav.appendChild(item);
+    if (p.files) {
+      p.files.forEach(f => {
+        const fi = document.createElement('div');
+        fi.className = 'file-item';
+        fi.draggable = true;
+        fi.ondragstart = (e) => { e.dataTransfer.setData('text/plain', f.name); fi.classList.add('dragging'); };
+        fi.ondragend = () => fi.classList.remove('dragging');
+        fi.onclick = () => focusFile(f, p);
+        fi.innerHTML = `<span class="i" style="color:${f.special?'var(--warn)':'var(--dim)'}"><svg><use href="#${f.icon}"/></svg></span>
+          <span style="${f.special?'color:var(--warn)':''}">${f.name}</span>
+          ${f.children?'<span style="font-size:5px;color:var(--vdim);margin-left:auto">'+f.children.length+' items</span>':''}`;
+        nav.appendChild(fi);
+      });
+    }
+  });
+  nav.innerHTML += '<div class="file-drag-hint">↖ drag files into Claude chat for contextual injection<br>double-click project root → reset CLI + reload context + chain scripts</div>';
+  const addBtn = document.createElement('div');
+  addBtn.className = 'pn-item';
+  addBtn.style.color = 'var(--dim)';
+  addBtn.innerHTML = '<span class="i" style="color:var(--dim)"><svg><use href="#i-plus"/></svg></span><span>New Project / Fork OG</span>';
+  nav.appendChild(addBtn);
+}
+
+function renderFiles() {
+  const nav = document.getElementById('fileNav');
+  const p = projects[0];
+  nav.innerHTML = '<div class="pn-label">FILES — gentlyos/ — click to focus, drag to chat</div>';
+  if (p.files) p.files.forEach(f => {
+    const fi = document.createElement('div');
+    fi.className = 'file-item';
+    fi.draggable = true;
+    fi.ondragstart = (e) => { e.dataTransfer.setData('text/plain',f.name); fi.classList.add('dragging'); };
+    fi.ondragend = () => fi.classList.remove('dragging');
+    fi.onclick = () => focusFile(f, p);
+    fi.innerHTML = `<span class="i" style="color:${f.special?'var(--warn)':'var(--dim)'}"><svg><use href="#${f.icon}"/></svg></span><span style="${f.special?'color:var(--warn)':''}">${f.name}</span>`;
+    nav.appendChild(fi);
+    if (f.children) f.children.forEach(c => {
+      const ci = document.createElement('div');
+      ci.className = 'file-item'; ci.style.paddingLeft = '36px';
+      ci.draggable = true;
+      ci.innerHTML = `<span class="i"><svg><use href="#i-file"/></svg></span><span>${c}</span>`;
+      nav.appendChild(ci);
+    });
+  });
+}
+
+function renderSkills() {
+  const nav = document.getElementById('skillsNav');
+  nav.innerHTML = `<div class="pn-label">CLAUDE SKILLS + AGENTS</div>
+    <div class="pn-item selected" style="color:var(--warn)"><span class="i" style="color:var(--warn)"><svg><use href="#i-bot"/></svg></span>CLAUDE.md<span class="pn-meta">master context</span></div>
+    <div class="pn-item" style="color:var(--warn)"><span class="i" style="color:var(--warn)"><svg><use href="#i-bot"/></svg></span>AGENTS.md<span class="pn-meta">34 agents</span></div>
+    <div class="pn-item"><span class="i"><svg><use href="#i-file"/></svg></span>.claude/skills.md<span class="pn-meta">skill defs</span></div>
+    <div class="pn-item"><span class="i"><svg><use href="#i-file"/></svg></span>.claude/context.json<span class="pn-meta">vector keys</span></div>
+    <div class="pn-item"><span class="i"><svg><use href="#i-folder"/></svg></span>.claude/prompts/<span class="pn-meta">8 prompts</span></div>
+    <div class="file-drag-hint" style="padding-top:12px">Skills and agent definitions are loaded into every prompt automatically via the rotating key system. Keys cycle per interaction to maintain fresh context vectors.</div>`;
+}
+
+function renderGit() {
+  const nav = document.getElementById('gitNav');
+  nav.innerHTML = `<div class="pn-label">GITHUB — tomlee3d</div>
+    <div class="pn-item selected"><span class="i" style="color:var(--focus)"><svg><use href="#i-diamond"/></svg></span>gentlyos<span class="pn-meta">private · 17 crates</span></div>
+    <div class="pn-item"><span class="i" style="color:var(--feed)"><svg><use href="#i-feed"/></svg></span>gently-feed<span class="pn-meta">private</span></div>
+    <div class="pn-item"><span class="i" style="color:var(--doc)"><svg><use href="#i-book"/></svg></span>gently-doc<span class="pn-meta">public</span></div>
+    <div class="pn-item"><span class="i"><svg><use href="#i-code"/></svg></span>gently-sdk<span class="pn-meta">public · this app</span></div>
+    <div class="file-drag-hint" style="padding-top:12px">OG repos. Fork and create new projects from these. Git operations tied to the anchor chain — every commit references the genesis key.</div>`;
+}
+
+function renderCLI() {
+  const view = document.getElementById('cliView');
+  view.innerHTML = `<div class="cli-line info">$ gentlyos-sdk --init-chain</div>
+<div class="cli-line out">Loading genesis anchor from chain...</div>
+<div class="cli-line ok">✓ Anchor verified: 0x7a3f9b2c...d1e4</div>
+<div class="cli-line ok">✓ Version locked: v1.0.0-alpha</div>
+<div class="cli-line ok">✓ Flake hash: sha256:a3f2c1d8e9...</div>
+<div class="cli-line"></div>
+<div class="cli-line chain">$ chain-context.sh → loading key rotation</div>
+<div class="cli-line out">  Rotating symbols: ⟁ → ◇ → ⬡ → ▽</div>
+<div class="cli-line ok">✓ Context keys injected into prompt template</div>
+<div class="cli-line"></div>
+<div class="cli-line cmd">$ claude --reset --context .claude/context.json</div>
+<div class="cli-line out">  Clearing previous session...</div>
+<div class="cli-line out">  Loading CLAUDE.md (master context)</div>
+<div class="cli-line out">  Loading AGENTS.md (34 agents)</div>
+<div class="cli-line out">  Loading skills.md (8 skill definitions)</div>
+<div class="cli-line out">  Vectorizing project files...</div>
+<div class="cli-line ok">✓ Claude CLI reset complete</div>
+<div class="cli-line"></div>
+<div class="cli-line cmd">$ bash scripts/reset-cli.sh</div>
+<div class="cli-line out">  → cat CLAUDE.md | claude --inject</div>
+<div class="cli-line out">  → cat AGENTS.md | claude --inject</div>
+<div class="cli-line out">  → find crates/ -name "*.rs" | head -50 | claude --vectorize</div>
+<div class="cli-line ok">✓ 50 files vectorized</div>
+<div class="cli-line"></div>
+<div class="cli-line cmd">$ bash scripts/chain-context.sh</div>
+<div class="cli-line out">  → Chaining: reset-cli → load-skills → vectorize → ready</div>
+<div class="cli-line ok">✓ Full context chain loaded</div>
+<div class="cli-line ok">✓ Claude ready with project context</div>
+<div class="cli-line"></div>
+<div class="cli-line info">Awaiting commands... <span class="cli-cursor"></span></div>`;
+}
+
+function executeProjectChain(project) {
+  setTab('cli');
+  const view = document.getElementById('cliView');
+  view.innerHTML = '';
+  const lines = [
+    { cls:'chain', text:`$ double-click: ${project.name}/ → executing CLI chain`, delay:0 },
+    { cls:'out', text:'', delay:100 },
+    { cls:'cmd', text:'$ claude --reset', delay:200 },
+    { cls:'out', text:'  Clearing previous session state...', delay:400 },
+    { cls:'ok', text:'✓ Session cleared', delay:600 },
+    { cls:'out', text:'', delay:700 },
+    { cls:'cmd', text:`$ cat ${project.name}/CLAUDE.md | claude --inject`, delay:800 },
+    { cls:'out', text:'  Injecting master context (2.4KB)...', delay:1000 },
+    { cls:'ok', text:'✓ Master context loaded', delay:1200 },
+    { cls:'out', text:'', delay:1300 },
+    { cls:'cmd', text:`$ cat ${project.name}/AGENTS.md | claude --inject`, delay:1400 },
+    { cls:'out', text:'  Loading 34 agent definitions...', delay:1600 },
+    { cls:'ok', text:'✓ 1 CTO + 8 Directors + 24 Captains + 1 Auditor ready', delay:1800 },
+    { cls:'out', text:'', delay:1900 },
+    { cls:'cmd', text:'$ bash scripts/chain-context.sh', delay:2000 },
+    { cls:'out', text:'  → reset-cli.sh', delay:2200 },
+    { cls:'out', text:'  → load-skills.sh', delay:2400 },
+    { cls:'out', text:'  → vectorize-project.sh', delay:2600 },
+    { cls:'out', text:'  → rotate-keys.sh', delay:2800 },
+    { cls:'chain', text:`  Keys: ${currentKeys.join(' ')} → rotating...`, delay:3000 },
+    { cls:'ok', text:'✓ Context chain complete', delay:3200 },
+    { cls:'out', text:'', delay:3300 },
+    { cls:'ok', text:`✓ Claude CLI ready for ${project.name}`, delay:3400 },
+    { cls:'ok', text:'✓ All files vectorized. Context auto-injected.', delay:3600 },
+    { cls:'info', text:'Ready. <span class="cli-cursor"></span>', delay:3800 },
+  ];
+  lines.forEach(l => {
+    setTimeout(() => {
+      const div = document.createElement('div');
+      div.className = 'cli-line ' + l.cls;
+      div.innerHTML = l.text;
+      view.appendChild(div);
+      view.scrollTop = view.scrollHeight;
+    }, l.delay);
+  });
+  setTimeout(rotateKeys, 3000);
+  // Update chat
+  setTimeout(() => {
+    addChatMsg('a', `Context chain loaded for <b>${project.name}</b>. I have: master context (CLAUDE.md), 34 agent definitions, ${project.files?project.files.length:0} files vectorized, key rotation active. Ready to work.
+
+<span style="font-size:7px;color:var(--dim)">Auto-context: <span style="color:var(--cli)">${currentKeys.join('')}</span> · ${project.files?project.files.length:0} files · 34 agents · hardlock: ON</span>`);
+  }, 4000);
+}
+
+function focusFile(file, project) {
+  addChatMsg('a', `Focused on <code>${file.name}</code> in ${project.name}. Context vectorized. I can see the file contents and its relationships to the rest of the project.
+
+<span style="font-size:7px;color:var(--dim)">cat ${project.name}/${file.name} | claude --context · keys: <span style="color:var(--cli)">${currentKeys.join('')}</span></span>`);
+  rotateKeys();
+}
+
+function triggerReboot() {
+  addChatMsg('a', `Reboot triggered → anchor says <b style="color:var(--chain)">v1.0.0-alpha</b>. NixOS will rebuild from flake hash <code>sha256:a3f2c1d8e9...</code> and boot into that exact system closure. The anchor contract's <code>bootTarget()</code> determines which version loads.`);
+}
+
+function closePaneB() { document.getElementById('paneB').classList.remove('open'); }
+
+// Chat
+const initMsgs = [
+  { type:'a', text:`SDK Workbench loaded. Anchor locked to chain.
+
+The <b style="color:var(--anchor)">Anchor tab</b> is hardcoded — can't close it, can't edit it. That's the genesis contract binding this OS to the chain.
+
+Click <b style="color:var(--focus)">Projects</b> to see your repos. <b>Double-click</b> the root level of any project to fire the CLI chain: reset Claude → load CLAUDE.md → load AGENTS.md → vectorize files → rotate keys. Everything auto-injects.
+
+Files in the navigator are <b>draggable</b> — pull them into this chat to give me focused context. Or click a file to <code>cat</code> it into my awareness.
+
+Keys rotate every interaction: <span style="color:var(--cli)">${currentKeys.join(' ')}</span> — loaded into every prompt automatically for context vectorization.
+
+<span style="font-size:7px;color:var(--dim)">This workbench IS the SDK. We finish GentlyOS here.</span>` }
+];
+
+function addChatMsg(type, html) {
+  const body = document.getElementById('chatBody');
+  const div = document.createElement('div');
+  div.className = 'msg ' + (type==='u'?'u':'a');
+  div.innerHTML = html;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+function sendMsg() {
+  const input = document.getElementById('chatInput');
+  if (!input.value.trim()) return;
+  addChatMsg('u', `<div class="msg-tag" style="color:var(--cli)">[SDK|${currentKeys.join('')}|${currentTab}]</div>${input.value}`);
+  input.value = '';
+  rotateKeys();
+  setTimeout(() => {
+    addChatMsg('a', `Working in <b>${currentTab}</b> scope. Context keys rotated to <span style="color:var(--cli)">${currentKeys.join('')}</span>. All project files vectorized. What's next?`);
+  }, 300);
+}
+
+// Init
+initMsgs.forEach(m => addChatMsg(m.type, m.text));
+document.getElementById('chatInput').addEventListener('keydown', e => { if(e.key==='Enter') sendMsg(); });
+
+// Chat drop zone
+document.getElementById('chatBody').addEventListener('dragover', e => { e.preventDefault(); e.currentTarget.style.background = 'color-mix(in srgb, var(--cli) 3%, var(--bg))'; });
+document.getElementById('chatBody').addEventListener('dragleave', e => { e.currentTarget.style.background = ''; });
+document.getElementById('chatBody').addEventListener('drop', e => {
+  e.preventDefault();
+  e.currentTarget.style.background = '';
+  const file = e.dataTransfer.getData('text/plain');
+  if (file) {
+    addChatMsg('u', `<div class="msg-tag" style="color:var(--cli)">[SDK|${currentKeys.join('')}|file-inject]</div><span class="i" style="width:10px;height:10px;color:var(--cli)"><svg style="width:8px;height:8px"><use href="#i-file"/></svg></span> <code>${file}</code> — analyze this`);
+    rotateKeys();
+    setTimeout(() => {
+      addChatMsg('a', `Injected <code>${file}</code> into context. File vectorized with keys <span style="color:var(--cli)">${currentKeys.join('')}</span>. I can see its contents and relationship to the project graph. What do you want to do with it?`);
+    }, 300);
+  }
+});
+</script>
+</body>
+</html>
