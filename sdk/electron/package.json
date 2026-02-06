@@ -8,7 +8,7 @@
     "dev": "NODE_ENV=development electron ."
   },
   "dependencies": {
-    "electron": "^33.0.0"
+    "electron": "^40.2.1"
   },
   "devDependencies": {}
 }
