@@ -1,0 +1,13 @@
+[package]
+name = "gently-behavior"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Behavioral learning and adaptive UI"
+
+[dependencies]
+gently-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+thiserror.workspace = true

@@ -1,0 +1,13 @@
+[package]
+name = "gently-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GentlyOS Audio - Audio capture, processing, and synthesis"
+
+[dependencies]
+gently-core.workspace = true
+cpal.workspace = true
+dasp.workspace = true
+rustfft.workspace = true
+thiserror.workspace = true

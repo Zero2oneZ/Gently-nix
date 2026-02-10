@@ -1,0 +1,17 @@
+[package]
+name = "gently-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "API gateway"
+
+[dependencies]
+gently-core.workspace = true
+gently-network.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+http-body-util.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

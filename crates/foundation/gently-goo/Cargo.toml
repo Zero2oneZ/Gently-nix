@@ -1,0 +1,13 @@
+[package]
+name = "gently-goo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "SYNTHESTASIA GOO Field - Unified signed distance field (SDF) engine"
+
+[dependencies]
+gently-core.workspace = true
+nalgebra.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

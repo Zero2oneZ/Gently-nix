@@ -1,0 +1,13 @@
+[package]
+name = "gently-architect"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Reflective App Builder"
+
+[dependencies]
+gently-core.workspace = true
+gently-codie.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

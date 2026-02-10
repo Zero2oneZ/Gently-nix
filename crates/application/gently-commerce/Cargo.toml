@@ -1,0 +1,15 @@
+[package]
+name = "gently-commerce"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vibe Commerce + TradingView"
+
+[dependencies]
+gently-core.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+chrono.workspace = true
+thiserror.workspace = true

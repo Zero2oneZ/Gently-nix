@@ -1,0 +1,18 @@
+[package]
+name = "gentlyos-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GentlyOS terminal user interface"
+
+[[bin]]
+name = "gentlyos-tui"
+path = "src/main.rs"
+
+[dependencies]
+ratatui.workspace = true
+crossterm.workspace = true
+gently-core.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true

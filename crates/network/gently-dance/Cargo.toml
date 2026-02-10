@@ -1,0 +1,13 @@
+[package]
+name = "gently-dance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "XOR split-knowledge reconstruction"
+
+[dependencies]
+gently-core.workspace = true
+gently-cipher.workspace = true
+rand.workspace = true
+thiserror.workspace = true
+serde.workspace = true
