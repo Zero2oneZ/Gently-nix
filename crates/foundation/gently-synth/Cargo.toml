@@ -1,0 +1,13 @@
+[package]
+name = "gently-synth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "$SYNTH Token - GentlyOS native token and smart contract interface"
+
+[dependencies]
+gently-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+chrono.workspace = true

@@ -30,6 +30,7 @@ let
     "pro" = 2;
     "dev" = 3;
     "founder" = 4;
+    "admin" = 5;
   };
 
   currentLevel = tierLevel.${tier} or 0;
@@ -59,6 +60,14 @@ in {
   ++ lib.optionals (hasTier "dev") [
     ./profiles/limbo.nix
     ./profiles/wine.nix
+  ]
+  # Founder tier and above
+  ++ lib.optionals (hasTier "founder") [
+    # Founder gets upstream push, contract owner, full system
+  ]
+  # Admin tier (Tom only - L0)
+  ++ lib.optionals (hasTier "admin") [
+    # Admin-only: direct NixOS config, kernel modules, raw hardware
   ];
 
   # ===========================================================================
@@ -151,6 +160,10 @@ in {
       wine = hasTier "dev";
       contract_deploy = hasTier "dev";
       upstream_push = hasTier "founder";
+      contract_owner = hasTier "founder";
+      admin_nixos_config = hasTier "admin";
+      admin_kernel_modules = hasTier "admin";
+      admin_raw_hardware = hasTier "admin";
     };
     limits = {
       fork_tree_depth = if hasTier "pro" then -1 else if hasTier "basic" then 5 else 0;

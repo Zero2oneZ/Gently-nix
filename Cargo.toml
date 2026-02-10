@@ -8,6 +8,7 @@ members = [
     "crates/foundation/gently-audio",
     "crates/foundation/gently-visual",
     "crates/foundation/gently-goo",      # SYNTHESTASIA: GOO Field unified distance field engine
+    "crates/foundation/gently-synth",    # $SYNTH: Token and smart contract interface
 
     # TIER 1-2: KNOWLEDGE (blob) - Data layer
     "crates/knowledge/gently-feed",
@@ -31,12 +32,14 @@ members = [
     "crates/security/gently-guardian",
     "crates/security/gently-sim",
     "crates/security/gently-sploit",
+    "crates/security/gently-guard",    # Permission Engine: Layer-based access control
 
     # TIER 5: NETWORK (bark) - Communication layer
     "crates/network/gently-network",
     "crates/network/gently-gateway",
     "crates/network/gently-bridge",   # IPC Bridge: Limbo Layer communication (port 7335)
     "crates/network/gently-dance",
+    "crates/network/gently-livepeer",    # Livepeer: Decentralized video transcoding
 
     # TIER 6: APPLICATION (biz) - User-facing layer
     "crates/application/gently-web",
@@ -44,6 +47,8 @@ members = [
     "crates/application/gently-document", # SYNTHESTASIA: Three-chain document engine
     "crates/application/gently-gooey",    # SYNTHESTASIA: GOOEY 2D application builder
     "crates/application/gently-commerce", # SYNTHESTASIA: Vibe commerce + TradingView
+    "crates/application/gently-google",   # Google APIs: YouTube, Ads, Analytics
+    "crates/application/gently-tiktok",   # TikTok posting infrastructure
 
     # BINARIES (pug) - Entry points
     "binaries/gently-cli",
@@ -66,7 +71,7 @@ sha2 = "0.10"
 hmac = "0.12"
 hkdf = "0.12"
 rand = "0.8"
-zeroize = { version = "=1.3.0", features = ["zeroize_derive"] }
+zeroize = { version = "1.7", features = ["zeroize_derive"] }
 argon2 = "0.5"
 chacha20poly1305 = "0.10"
 getrandom = "0.2"
@@ -111,6 +116,7 @@ gently-artisan = { path = "crates/foundation/gently-artisan" }
 gently-audio = { path = "crates/foundation/gently-audio" }
 gently-visual = { path = "crates/foundation/gently-visual" }
 gently-goo = { path = "crates/foundation/gently-goo" }
+gently-synth = { path = "crates/foundation/gently-synth" }
 
 # Internal crates - Knowledge (TIER 1-2)
 gently-feed = { path = "crates/knowledge/gently-feed" }
@@ -134,12 +140,14 @@ gently-cipher = { path = "crates/security/gently-cipher" }
 gently-guardian = { path = "crates/security/gently-guardian" }
 gently-sim = { path = "crates/security/gently-sim" }
 gently-sploit = { path = "crates/security/gently-sploit" }
+gently-guard = { path = "crates/security/gently-guard" }
 
 # Internal crates - Network (TIER 5)
 gently-network = { path = "crates/network/gently-network" }
 gently-gateway = { path = "crates/network/gently-gateway" }
 gently-bridge = { path = "crates/network/gently-bridge" }
 gently-dance = { path = "crates/network/gently-dance" }
+gently-livepeer = { path = "crates/network/gently-livepeer" }
 
 # Internal crates - Application (TIER 6)
 gently-web = { path = "crates/application/gently-web" }
@@ -147,6 +155,8 @@ gently-architect = { path = "crates/application/gently-architect" }
 gently-document = { path = "crates/application/gently-document" }
 gently-gooey = { path = "crates/application/gently-gooey" }
 gently-commerce = { path = "crates/application/gently-commerce" }
+gently-google = { path = "crates/application/gently-google" }
+gently-tiktok = { path = "crates/application/gently-tiktok" }
 
 # Disabled crates
 # gently-spl excluded: Solana dependency version conflicts
